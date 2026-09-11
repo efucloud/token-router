@@ -1,20 +1,13 @@
 services:
   token-router:
-    image: ${TOKEN_ROUTER_IMAGE:-registry.cn-shenzhen.aliyuncs.com/efucloud-public/token-router:latest}
+    image: ghcr.io/efucloud/token-router:latest
     restart: unless-stopped
     ports:
       - "9006:9006"
-    environment:
-      TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES: /efucloud/skills
-      TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE: /efucloud/config/mcp.yaml
-      TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE: /efucloud/workspaces
-      TOKEN_ROUTER_OIDC_CLIENT_SECRET: ${TOKEN_ROUTER_OIDC_CLIENT_SECRET:?set TOKEN_ROUTER_OIDC_CLIENT_SECRET}
-      TOKEN_ROUTER_GATEWAY_SECRET_KEY: ${TOKEN_ROUTER_GATEWAY_SECRET_KEY:?set TOKEN_ROUTER_GATEWAY_SECRET_KEY}
     volumes:
-      - ${TOKEN_ROUTER_CONFIG_FILE:?set TOKEN_ROUTER_CONFIG_FILE}:/efucloud/config/config.yaml:ro
-      - ${TOKEN_ROUTER_MCP_CONFIG_FILE:-./mcp.yaml}:/efucloud/config/mcp.yaml:ro
-      - ${TOKEN_ROUTER_SKILLS_DIR:?set TOKEN_ROUTER_SKILLS_DIR}:/efucloud/skills:ro
-      - ${TOKEN_ROUTER_MCP_PROGRAMS_DIR:?set TOKEN_ROUTER_MCP_PROGRAMS_DIR}:/efucloud/mcp:ro
+      - ./config.yaml:/efucloud/config/config.yaml:ro
+      - ./skills:/efucloud/skills:ro
+      - ./mcp:/efucloud/mcp:ro
       - token-router-cache:/efucloud/.cache
       - token-router-home:/efucloud/.home
       - token-router-workspace:/efucloud/workspaces

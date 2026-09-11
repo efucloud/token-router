@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPOSITORY_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 
-REGISTRY="registry.cn-shenzhen.aliyuncs.com/efucloud-public/token-router"
+REGISTRY="ghcr.io/efucloud/token-router"
 GIT_COMMIT=$(git rev-parse HEAD)
 BUILD_DATE=$(date +'%Y/%m/%d %H:%M:%S')
 TAG="v1.0.0.$(date +'%Y%m%d%H%M')"

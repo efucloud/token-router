@@ -24,9 +24,9 @@
 ## 3. 目录模型与生命周期
 
 配置 `chat.builtinTools.workspaceDirectory` 是用户工作区根目录。字段为空或未配置时，
-服务在进程运行目录创建 `workspace`；也可通过 `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`
-覆盖。容器镜像将其覆盖为 `/efucloud/workspaces`，创建该目录并归非 root 的服务用户所有；
-Kubernetes 和 Docker Compose 示例将持久卷挂载到同一路径。
+服务在进程运行目录创建 `workspace`。容器部署应在主配置中将其设为
+`/efucloud/workspaces`；镜像创建该目录并归非 root 的服务用户所有，Kubernetes 和 Docker
+Compose 示例将持久卷挂载到同一路径。
 
 用户目录名为：
 
@@ -71,11 +71,6 @@ sha256("token-router-workspace-v1\x00" + account_id) 的小写十六进制
 | `maxUploadBytes` | `33554432` | 单文件上传字节上限（32 MiB） |
 | `maxOutputBytes` | `1048576` | 单次模型文件工具结果上限 |
 | `allowedRoles` | `[admin]` | 允许使用 `command` 的角色；不限制个人文件浏览和文件工具 |
-
-环境变量：
-
-- `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE` 覆盖 `workspaceDirectory`。
-- `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES` 覆盖 `maxUploadBytes`，必须为正整数。
 
 配置的共同根目录不存在时由服务创建；创建失败时能力接口返回局部故障，文件 API 返回
 服务不可用，服务不得回退到进程当前目录或临时目录。

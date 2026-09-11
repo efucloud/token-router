@@ -136,8 +136,8 @@ MCP 工具。设计参考 QwenPaw 的上下文阈值/退避模型和 opencode �
 - 一个失效 MCP 服务不会阻断模型列表、历史加载、普通对话或其他 MCP 服务。
 - 官方后端镜像以非 root 用户运行，并预置 Node.js/npm、Python 3/pip，使挂载到容器内的
   Node/Python stdio MCP 服务可直接启动。
-- 将 Skill 挂载到 `/efucloud/skills` 后可被发现；将独立 MCP 配置文件挂载到
-  `/efucloud/config/mcp.yaml` 后，可通过环境变量加载并覆盖主配置中的 MCP 服务列表。
+- 将 Skill 挂载到 `/efucloud/skills`，并在主配置的 `chat.skillDirectories` 中声明后可被发现；
+  主配置中的 `chat.mcpServers` 可声明并启用 MCP 服务。
 - 后端测试、前端类型检查、lint 与生产构建通过。
 
 ## 11. 非目标
@@ -152,8 +152,6 @@ MCP 工具。设计参考 QwenPaw 的上下文阈值/退避模型和 opencode �
 后端镜像固定使用以下容器内路径：
 
 - `/efucloud/config/config.yaml`：主配置文件，由 ConfigMap、Secret 或只读卷挂载。
-- `/efucloud/config/mcp.yaml`：可选的独立 MCP 配置，仅包含 `mcpServers` 数组，适合通过
-  Secret 挂载，避免将请求头和 stdio 环境变量烘焙进镜像。
 - `/efucloud/skills`：只读 Skill 根目录，可包含多个 `<name>/SKILL.md`。
 - `/efucloud/mcp`：stdio MCP 程序、依赖和工作目录的挂载根目录。
 - `/efucloud/workspaces`：登录用户个人工作区的共同根目录，生产环境应挂载 PVC。
@@ -163,12 +161,8 @@ MCP 工具。设计参考 QwenPaw 的上下文阈值/退避模型和 opencode �
 MCP 的基础运行时。需要浏览器、系统库或其他语言运行时的 MCP 服务应构建派生镜像，或以
 Streamable HTTP sidecar/独立服务部署，不能在运行中的业务容器里临时提权安装依赖。
 
-容器部署支持以下环境变量覆盖：
-
-- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`：使用操作系统路径分隔符连接的 Skill 目录列表；
-  设置后覆盖主配置的 `chat.skillDirectories`。官方镜像默认值为 `/efucloud/skills`。
-- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`：独立 MCP YAML/JSON 文件路径；设置后读取并覆盖主配置
-  的 `chat.mcpServers`。文件不可读或格式错误时服务必须快速失败，不能静默禁用能力。
+容器部署不支持环境变量覆盖运行配置。Skill 目录、MCP 服务、工作区及凭据全部写入主配置
+文件；包含敏感值时必须将完整配置作为 Secret 挂载。
 
 MCP 密钥不得写入镜像层或非 Secret ConfigMap。Streamable HTTP MCP 推荐部署为同网络的
 独立服务；stdio MCP 仅执行服务端预配置的绝对命令，并从只读 `/efucloud/mcp` 卷加载代码。

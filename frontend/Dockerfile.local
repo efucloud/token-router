@@ -1,4 +1,4 @@
-FROM registry.cn-shenzhen.aliyuncs.com/efucloud-public/nginx:1.29.4-alpine
+FROM nginx:1.29.4-alpine
 
 ARG GIT_COMMIT
 ARG BUILD_DATE

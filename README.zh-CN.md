@@ -142,19 +142,8 @@ adminEmails:
 openssl rand -base64 32
 ```
 
-以下环境变量会覆盖相应的敏感配置：
-
-- `TOKEN_ROUTER_OIDC_ISSUER`
-- `TOKEN_ROUTER_OIDC_CLIENT_ID`
-- `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
-- `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
-- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
-- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
-- `TOKEN_ROUTER_CHAT_BUILTIN_TOOLS_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_DEFAULT_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_COMMAND_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`
-- `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES`
+后端运行配置只从 `-c`/`--config` 指定的 YAML 文件读取。生产凭据应由部署系统以受保护的
+配置文件提供；环境变量不会覆盖配置值。
 
 容器镜像可在非 root 模式下直接使用按登录用户隔离的个人文件工作区、内置文件/命令工具、
 Skills、Streamable HTTP MCP 及 Node/Python stdio MCP。
@@ -177,8 +166,8 @@ go run ./cmd/start.go -c ./config/config.yaml
 ```
 
 API 服务监听 `http://localhost:9006`。
-本地配置默认把个人工作区写入进程运行目录下的 `workspace`；容器部署仍使用
-`/efucloud/workspaces` 或 `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE` 指定的挂载目录。
+本地配置默认把个人工作区写入进程运行目录下的 `workspace`；容器部署应在挂载的配置文件中
+将 `chat.builtinTools.workspaceDirectory` 设为 `/efucloud/workspaces`。
 生产构建通过 Go `embed` 将 `frontend/dist` 编译进后端二进制，因此同一个 `9006` 端口
 同时提供控制台和 API，不需要额外部署 Nginx 或前端容器。
 
@@ -203,15 +192,9 @@ npm run dev
 API_PROXY_TARGET=http://localhost:9006 npm run dev
 ```
 
-### 4. 构建一体化镜像
+### 4. 镜像流水线
 
-从仓库根目录执行：
-
-```shell
-docker build -f backend/Dockerfile -t token-router:local .
-```
-
-镜像会先构建前端，再将静态资源嵌入 Go 二进制。GitHub Actions 在 `main` 分支和 `v*`
+GitHub Actions 会先构建前端，再将静态资源嵌入 Go 二进制。在 `main` 分支和 `v*`
 标签推送时构建 `linux/amd64`、`linux/arm64` 镜像，并发布到
 `ghcr.io/efucloud/token-router`；Pull Request 只验证构建，不推送镜像。
 

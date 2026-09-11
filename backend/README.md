@@ -10,16 +10,9 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 
 ## 本地配置
 
-`config/config.yaml` 默认连接本地 MySQL `token_router`。生产环境建议使用以下环境变量
-覆盖敏感配置：
-
-- `TOKEN_ROUTER_OIDC_ISSUER`
-- `TOKEN_ROUTER_OIDC_CLIENT_ID`
-- `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
-- `TOKEN_ROUTER_OIDC_SKIP_CLIENT_ID_CHECK`（`true` 时允许同一 Issuer 的跨客户端 Token）
-- `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
-- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`（路径列表，覆盖 `chat.skillDirectories`）
-- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`（独立 MCP YAML/JSON 文件，覆盖 `chat.mcpServers`）
+`config/config.yaml` 默认连接本地 MySQL `token_router`。后端运行配置只从 `-c`/`--config`
+指定的 YAML 文件读取，环境变量不会覆盖配置值。生产环境应通过 Secret 或等价机制挂载完整
+配置文件，并限制文件访问权限。
 
 `oidcConfig.skipClientIDCheck` 默认为 `false`，此时 Token 的 `aud` 必须包含配置的
 `clientId`。需要让共享同一 OIDC 的多个系统互通 Token 时设为 `true`；Issuer、签名、
@@ -31,16 +24,11 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 ## 容器能力
 
 后端镜像以 UID/GID `10001` 运行，监听 `9006`，并包含 Node.js/npm、Python 3/pip 供 stdio
-MCP 使用。将主配置、独立 MCP 配置、Skills 和 stdio 程序分别只读挂载到
-`/efucloud/config/config.yaml`、`/efucloud/config/mcp.yaml`、`/efucloud/skills` 和
-`/efucloud/mcp`。完整契约及 Compose/Kubernetes 示例见
-[容器内 Skills 与 MCP](../docs/deployment/container-capabilities.md)。
-
-一体化镜像必须从仓库根目录构建，使 Docker 可以同时读取 `frontend` 和 `backend`：
-
-```shell
-docker build -f backend/Dockerfile -t token-router:local .
-```
+MCP 使用。将主配置、Skills 和 stdio 程序分别只读挂载到
+`/efucloud/config/config.yaml`、`/efucloud/skills` 和 `/efucloud/mcp`，MCP 服务定义直接写入
+主配置的 `chat.mcpServers`。完整契约及 Compose/Kubernetes 示例见
+[容器内 Skills 与 MCP](../docs/deployment/container-capabilities.md)。GitHub Actions 使用仓库
+根目录作为构建上下文，依次完成前端构建、Go `embed` 编译和多架构镜像发布。
 
 ## 本地上游引导
 

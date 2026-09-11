@@ -17,11 +17,9 @@ limitations under the License.
 package config
 
 import (
-	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestConfigSerialization(t *testing.T) {
@@ -58,6 +56,20 @@ func TestConfigSerialization(t *testing.T) {
 		},
 		AdminEmails: []string{"admin@example.com"},
 		Gateway:     GatewayConfig{MaxAttempts: 2},
+		Chat: ChatConfig{
+			SkillDirectories: []string{"/srv/token-router/skills"},
+			MCPServers: []ChatMCPConfig{{
+				Name:    "knowledge",
+				Type:    "streamable-http",
+				Enabled: true,
+				URL:     "http://knowledge-mcp:3000/mcp",
+			}},
+			BuiltinTools: ChatBuiltinToolsConfig{
+				Enabled:            true,
+				WorkspaceDirectory: "/srv/token-router/workspaces",
+				MaxUploadBytes:     2048,
+			},
+		},
 	}
 	data, err := yaml.Marshal(config)
 	if err != nil {
@@ -69,6 +81,15 @@ func TestConfigSerialization(t *testing.T) {
 	}
 	if decoded.Gateway.MaxAttempts != 2 || decoded.OidcConfig.ClientId != config.OidcConfig.ClientId || !decoded.OidcConfig.SkipClientIDCheck {
 		t.Fatalf("unexpected round trip result: %#v", decoded)
+	}
+	if len(decoded.Chat.SkillDirectories) != 1 || decoded.Chat.SkillDirectories[0] != "/srv/token-router/skills" {
+		t.Fatalf("unexpected Skill directories: %#v", decoded.Chat.SkillDirectories)
+	}
+	if len(decoded.Chat.MCPServers) != 1 || decoded.Chat.MCPServers[0].Name != "knowledge" || decoded.Chat.MCPServers[0].URL != "http://knowledge-mcp:3000/mcp" {
+		t.Fatalf("unexpected MCP servers: %#v", decoded.Chat.MCPServers)
+	}
+	if !decoded.Chat.BuiltinTools.Enabled || decoded.Chat.BuiltinTools.WorkspaceDirectory != "/srv/token-router/workspaces" || decoded.Chat.BuiltinTools.MaxUploadBytes != 2048 {
+		t.Fatalf("unexpected builtin tools: %#v", decoded.Chat.BuiltinTools)
 	}
 }
 
@@ -83,59 +104,5 @@ func TestChatConfigDefaults(t *testing.T) {
 	}
 	if chat.BuiltinTools.WorkspaceDirectory != "workspace" || len(chat.BuiltinTools.AllowedRoles) != 1 || chat.BuiltinTools.AllowedRoles[0] != "admin" || chat.BuiltinTools.CommandTimeoutSeconds != 120 || chat.BuiltinTools.MaxOutputBytes != 1<<20 || chat.BuiltinTools.MaxUploadBytes != 32<<20 {
 		t.Fatalf("unexpected builtin tool defaults: %#v", chat.BuiltinTools)
-	}
-}
-
-func TestChatConfigEnvironmentOverrides(t *testing.T) {
-	firstSkillDirectory := filepath.Join(t.TempDir(), "skills-one")
-	secondSkillDirectory := filepath.Join(t.TempDir(), "skills-two")
-	mcpConfigPath := filepath.Join(t.TempDir(), "mcp.yaml")
-	mcpConfig := `mcpServers:
-  - name: workspace
-    type: stdio
-    enabled: true
-    command: /usr/bin/node
-    args: [/efucloud/mcp/workspace/index.js]
-    workingDir: /efucloud/mcp/workspace
-`
-	if err := os.WriteFile(mcpConfigPath, []byte(mcpConfig), 0o600); err != nil {
-		t.Fatalf("write MCP config: %v", err)
-	}
-	t.Setenv(chatSkillDirectoriesEnv, strings.Join([]string{firstSkillDirectory, secondSkillDirectory}, string(os.PathListSeparator)))
-	t.Setenv(chatMCPConfigFileEnv, mcpConfigPath)
-	t.Setenv(chatBuiltinToolsEnabledEnv, "true")
-	t.Setenv(chatBuiltinDefaultEnabledEnv, "true")
-	t.Setenv(chatBuiltinCommandEnabledEnv, "true")
-	t.Setenv(chatBuiltinWorkspaceEnv, "/tmp/token-router-workspace")
-	t.Setenv(chatWorkspaceMaxUploadEnv, "2048")
-
-	chat := ChatConfig{
-		SkillDirectories: []string{"from-main-config"},
-		MCPServers:       []ChatMCPConfig{{Name: "from-main-config"}},
-	}
-	if err := chat.applyEnvironment(); err != nil {
-		t.Fatalf("apply chat environment: %v", err)
-	}
-	if len(chat.SkillDirectories) != 2 || chat.SkillDirectories[0] != firstSkillDirectory || chat.SkillDirectories[1] != secondSkillDirectory {
-		t.Fatalf("unexpected Skill directories: %#v", chat.SkillDirectories)
-	}
-	if len(chat.MCPServers) != 1 || chat.MCPServers[0].Name != "workspace" || chat.MCPServers[0].Command != "/usr/bin/node" {
-		t.Fatalf("unexpected MCP servers: %#v", chat.MCPServers)
-	}
-	if !chat.BuiltinTools.Enabled || !chat.BuiltinTools.DefaultEnabled || !chat.BuiltinTools.CommandEnabled || chat.BuiltinTools.WorkspaceDirectory != "/tmp/token-router-workspace" || chat.BuiltinTools.MaxUploadBytes != 2048 {
-		t.Fatalf("unexpected builtin tools: %#v", chat.BuiltinTools)
-	}
-}
-
-func TestChatConfigRejectsInvalidMCPConfigFile(t *testing.T) {
-	mcpConfigPath := filepath.Join(t.TempDir(), "mcp.yaml")
-	if err := os.WriteFile(mcpConfigPath, []byte("mcpServerz: []\n"), 0o600); err != nil {
-		t.Fatalf("write MCP config: %v", err)
-	}
-	t.Setenv(chatMCPConfigFileEnv, mcpConfigPath)
-
-	var chat ChatConfig
-	if err := chat.applyEnvironment(); err == nil || !strings.Contains(err.Error(), "field mcpServerz not found") {
-		t.Fatalf("expected strict MCP config error, got %v", err)
 	}
 }

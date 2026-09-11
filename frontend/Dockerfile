@@ -1,5 +1,5 @@
 # 构建阶段
-FROM registry.cn-shenzhen.aliyuncs.com/efucloud-public/node:22-bookworm AS builder
+FROM node:22-bookworm AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ RUN npm run build
 
 
 # 运行阶段
-FROM registry.cn-shenzhen.aliyuncs.com/efucloud-public/nginx:1.29.4-alpine
+FROM nginx:1.29.4-alpine
 
 ARG GIT_COMMIT
 ARG BUILD_DATE

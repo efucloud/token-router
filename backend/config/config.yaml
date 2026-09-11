@@ -51,14 +51,14 @@ chat:
         defaultEnabled: true
         # allowedRoles 仅控制 command；个人文件工具对所有已登录用户开放。
         allowedRoles: [admin]
-        # 留空或删除时，默认在进程运行目录创建 workspace；容器镜像通过环境变量覆盖。
+        # 留空或删除时，默认在进程运行目录创建 workspace；容器配置建议设为 /efucloud/workspaces。
         workspaceDirectory: workspace
         commandEnabled: true
         commandTimeoutSeconds: 120
         maxOutputBytes: 1048576
         maxUploadBytes: 33554432
     # 仅扫描服务端明确允许的目录；目录中的 SKILL.md 会发布到对话窗口。
-    # 容器镜像默认通过环境变量覆盖为 ["/efucloud/skills"]。
+    # 容器配置建议设为 ["/efucloud/skills"]。
     skillDirectories: []
     # MCP 凭据、请求头和命令仅保留在服务端配置中，不会返回浏览器。
     # streamable-http 示例:
@@ -68,7 +68,7 @@ chat:
     #   url: http://mcp-server:3000/mcp
     #   headers: {Authorization: "Bearer replace-me"}
     # stdio 还可配置绝对 command、args、绝对 workingDir 与 environment。
-    # 容器可设置 TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE，从独立 Secret 文件覆盖此列表。
+    # 容器部署也直接在主配置文件中填写此列表。
     mcpServers: []
 adminEmails:
   - admin@efucloud.com

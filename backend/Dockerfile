@@ -1,15 +1,17 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-alpine AS frontend-builder
+ARG BUILDPLATFORM
+
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend-builder
 
 WORKDIR /workspace/frontend
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
 # 构建阶段
-FROM golang:1.26.4-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine3.23 AS builder
 
 # buildx 自动传入的跨平台参数（无需手动传）
 ARG TARGETOS
@@ -47,7 +49,7 @@ RUN case "$TARGETARCH" in \
 
 
 # 运行阶段
-FROM registry.cn-shenzhen.aliyuncs.com/efucloud-public/alpine:3.23.0
+FROM alpine:3.23.0
 
 # 重新声明 ARG（每个 FROM 都是新作用域）
 ARG TARGETOS
@@ -77,9 +79,7 @@ COPY --from=builder /workspace/backend/output/token-router-$TARGETOS-$TARGETARCH
 
 ENV HOME=/efucloud/.home \
     XDG_CACHE_HOME=/efucloud/.cache \
-    PYTHONUNBUFFERED=1 \
-    TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES=/efucloud/skills \
-    TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE=/efucloud/workspaces
+    PYTHONUNBUFFERED=1
 
 USER 10001:10001
 

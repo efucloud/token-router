@@ -143,19 +143,9 @@ Generate a development gateway key with:
 openssl rand -base64 32
 ```
 
-The following environment variables override the corresponding sensitive configuration values:
-
-- `TOKEN_ROUTER_OIDC_ISSUER`
-- `TOKEN_ROUTER_OIDC_CLIENT_ID`
-- `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
-- `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
-- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
-- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
-- `TOKEN_ROUTER_CHAT_BUILTIN_TOOLS_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_DEFAULT_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_COMMAND_ENABLED`
-- `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`
-- `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES`
+The backend reads runtime settings only from the YAML file selected by `-c`/`--config`.
+Store production credentials in a protected configuration file supplied by your deployment system;
+environment variables do not override configuration values.
 
 The container image supports per-user personal workspaces, built-in file/command tools, Skills,
 Streamable HTTP MCP, and Node/Python stdio MCP while running as a non-root user. See [Skills and MCP in containers](docs/deployment/container-capabilities.md) for
@@ -178,8 +168,8 @@ go run ./cmd/start.go -c ./config/config.yaml
 
 The API server listens on `http://localhost:9006`.
 The local configuration stores personal workspaces in `workspace` under the process working directory.
-Container deployments continue to use `/efucloud/workspaces` or the directory
-set by `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`.
+For containers, set `chat.builtinTools.workspaceDirectory` in the mounted configuration file to
+`/efucloud/workspaces`.
 Production builds compile `frontend/dist` into the Go binary with `embed`, so
 the console and APIs are served from the same `9006` port without a separate
 Nginx or frontend container.
@@ -205,16 +195,10 @@ Open `http://localhost:8001`. During development, `/api` and `/v1` are proxied t
 API_PROXY_TARGET=http://localhost:9006 npm run dev
 ```
 
-### 4. Build the integrated image
+### 4. Image pipeline
 
-Run from the repository root:
-
-```shell
-docker build -f backend/Dockerfile -t token-router:local .
-```
-
-The image builds the frontend first and embeds its static files in the Go
-binary. GitHub Actions builds `linux/amd64` and `linux/arm64` images for pushes
+GitHub Actions builds the frontend first and embeds its static files in the Go
+binary. It builds `linux/amd64` and `linux/arm64` images for pushes
 to `main` and `v*` tags and publishes them to `ghcr.io/efucloud/token-router`.
 Pull requests validate the image build without publishing it.
 

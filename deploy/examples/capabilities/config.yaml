@@ -1,0 +1,38 @@
+# 示例值必须在部署前替换。后端不会用环境变量覆盖此文件。
+mysql:
+  host: mysql:3306
+  user: token_router
+  password: replace-me
+  dbname: token_router
+
+logConfig:
+  level: info
+  filename: ""
+  production: true
+
+oidcConfig:
+  issuer: https://identity.example.com
+  clientId: token-router
+  clientSecret: replace-me
+  skipClientIDCheck: false
+
+gateway:
+  # 生成方式：openssl rand -base64 32
+  secretKey: replace-with-base64-encoded-32-byte-key
+
+chat:
+  skillDirectories: [/efucloud/skills]
+  builtinTools:
+    enabled: true
+    defaultEnabled: true
+    allowedRoles: [admin]
+    workspaceDirectory: /efucloud/workspaces
+    commandEnabled: false
+  mcpServers:
+    - name: knowledge
+      type: streamable-http
+      enabled: true
+      url: http://knowledge-mcp:3000/mcp
+      timeoutSeconds: 30
+
+adminEmails: [platform-admin@example.com]

@@ -1,4 +1,44 @@
 apiVersion: v1
+kind: Secret
+metadata:
+  name: token-router-config
+type: Opaque
+stringData:
+  # 示例值必须在部署前替换；后端不会用环境变量覆盖此文件。
+  config.yaml: |
+    mysql:
+      host: mysql:3306
+      user: token_router
+      password: replace-me
+      dbname: token_router
+    logConfig:
+      level: info
+      filename: ""
+      production: true
+    oidcConfig:
+      issuer: https://identity.example.com
+      clientId: token-router
+      clientSecret: replace-me
+      skipClientIDCheck: false
+    gateway:
+      secretKey: replace-with-base64-encoded-32-byte-key
+    chat:
+      skillDirectories: [/efucloud/skills]
+      builtinTools:
+        enabled: true
+        defaultEnabled: true
+        allowedRoles: [admin]
+        workspaceDirectory: /efucloud/workspaces
+        commandEnabled: false
+      mcpServers:
+        - name: knowledge
+          type: streamable-http
+          enabled: true
+          url: http://knowledge-mcp:3000/mcp
+          timeoutSeconds: 30
+    adminEmails: [platform-admin@example.com]
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: token-router-skills
@@ -10,20 +50,6 @@ data:
     ---
 
     Prefer read-only diagnostics and include the workload name in every result.
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: token-router-mcp
-type: Opaque
-stringData:
-  mcp.yaml: |
-    mcpServers:
-      - name: knowledge
-        type: streamable-http
-        enabled: true
-        url: http://knowledge-mcp:3000/mcp
-        timeoutSeconds: 30
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -46,18 +72,10 @@ spec:
         fsGroup: 10001
       containers:
         - name: token-router
-          image: registry.cn-shenzhen.aliyuncs.com/efucloud-public/token-router:latest
+          image: ghcr.io/efucloud/token-router:latest
           ports:
             - name: http
               containerPort: 9006
-          env:
-            - name: TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES
-              value: /efucloud/skills
-            - name: TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE
-              value: /efucloud/config/mcp.yaml
-          envFrom:
-            - secretRef:
-                name: token-router-environment
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -76,10 +94,6 @@ spec:
               mountPath: /efucloud/config/config.yaml
               subPath: config.yaml
               readOnly: true
-            - name: mcp-config
-              mountPath: /efucloud/config/mcp.yaml
-              subPath: mcp.yaml
-              readOnly: true
             - name: skills
               mountPath: /efucloud/skills/container-operations/SKILL.md
               subPath: container-operations.SKILL.md
@@ -96,13 +110,10 @@ spec:
             - name: log
               mountPath: /efucloud/log
       volumes:
-        # token-router-config 必须提供 config.yaml；敏感主配置也可改用 Secret。
+        # token-router-config 必须提供包含所有运行配置和凭据的 config.yaml。
         - name: main-config
-          configMap:
-            name: token-router-config
-        - name: mcp-config
           secret:
-            secretName: token-router-mcp
+            secretName: token-router-config
         - name: skills
           configMap:
             name: token-router-skills

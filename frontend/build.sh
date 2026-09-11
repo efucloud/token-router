@@ -17,7 +17,7 @@ tag="v1.0.0.$(date +'%Y%m%d%H%M')"
 
 echo "Building tag: $tag"
 
-IMAGE="registry.cn-shenzhen.aliyuncs.com/efucloud-dev/token-router-frontend:$tag"
+IMAGE="ghcr.io/efucloud/token-router-frontend:$tag"
 
 docker buildx build \
   --build-arg GIT_COMMIT="$GIT_COMMIT" \
