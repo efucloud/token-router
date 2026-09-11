@@ -177,6 +177,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       dom
     ),
   siderWidth: 220,
+  contentStyle: { padding: 0 },
   menuHeaderRender: undefined,
   menuRender: (_, defaultDom) =>
     history.location.pathname === '/personal/chat' ? null : defaultDom,
