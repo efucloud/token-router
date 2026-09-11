@@ -22,8 +22,13 @@ import (
 )
 
 const (
-	chatSkillDirectoriesEnv = "TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES"
-	chatMCPConfigFileEnv    = "TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE"
+	chatSkillDirectoriesEnv      = "TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES"
+	chatMCPConfigFileEnv         = "TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE"
+	chatBuiltinToolsEnabledEnv   = "TOKEN_ROUTER_CHAT_BUILTIN_TOOLS_ENABLED"
+	chatBuiltinDefaultEnabledEnv = "TOKEN_ROUTER_CHAT_BUILTIN_DEFAULT_ENABLED"
+	chatBuiltinCommandEnabledEnv = "TOKEN_ROUTER_CHAT_BUILTIN_COMMAND_ENABLED"
+	chatBuiltinWorkspaceEnv      = "TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE"
+	chatWorkspaceMaxUploadEnv    = "TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES"
 )
 
 type chatMCPConfigDocument struct {
@@ -38,6 +43,35 @@ func (c *ChatConfig) applyEnvironment() error {
 				c.SkillDirectories = append(c.SkillDirectories, directory)
 			}
 		}
+	}
+	for _, item := range []struct {
+		name   string
+		target *bool
+	}{
+		{name: chatBuiltinToolsEnabledEnv, target: &c.BuiltinTools.Enabled},
+		{name: chatBuiltinDefaultEnabledEnv, target: &c.BuiltinTools.DefaultEnabled},
+		{name: chatBuiltinCommandEnabledEnv, target: &c.BuiltinTools.CommandEnabled},
+	} {
+		if value, configured := os.LookupEnv(item.name); configured {
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("parse %s: %w", item.name, err)
+			}
+			*item.target = enabled
+		}
+	}
+	if value, configured := os.LookupEnv(chatBuiltinWorkspaceEnv); configured {
+		if value = strings.TrimSpace(value); value == "" {
+			return fmt.Errorf("%s must not be empty", chatBuiltinWorkspaceEnv)
+		}
+		c.BuiltinTools.WorkspaceDirectory = value
+	}
+	if value, configured := os.LookupEnv(chatWorkspaceMaxUploadEnv); configured {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil || parsed <= 0 {
+			return fmt.Errorf("%s must be a positive integer", chatWorkspaceMaxUploadEnv)
+		}
+		c.BuiltinTools.MaxUploadBytes = parsed
 	}
 
 	path := strings.TrimSpace(os.Getenv(chatMCPConfigFileEnv))

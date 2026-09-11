@@ -69,10 +69,12 @@ type ChatMCPToolCapability struct {
 }
 
 type ChatMCPServerCapability struct {
-	Name   string                  `json:"name"`
-	Status string                  `json:"status"`
-	Error  string                  `json:"error,omitempty"`
-	Tools  []ChatMCPToolCapability `json:"tools"`
+	Name           string                  `json:"name"`
+	Kind           string                  `json:"kind"`
+	Status         string                  `json:"status"`
+	DefaultEnabled bool                    `json:"defaultEnabled"`
+	Error          string                  `json:"error,omitempty"`
+	Tools          []ChatMCPToolCapability `json:"tools"`
 }
 
 type ChatCapabilities struct {
@@ -89,4 +91,18 @@ type ChatMCPToolCall struct {
 type ChatMCPToolResult struct {
 	Content string `json:"content"`
 	IsError bool   `json:"isError"`
+}
+
+type ChatWorkspaceEntry struct {
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	Type      string    `json:"type"`
+	Size      int64     `json:"size"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type ChatWorkspaceListing struct {
+	Path           string               `json:"path"`
+	Entries        []ChatWorkspaceEntry `json:"entries"`
+	MaxUploadBytes int64                `json:"maxUploadBytes"`
 }

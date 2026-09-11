@@ -72,6 +72,14 @@
 - 所有接口仅返回或修改当前 OIDC 用户自己的会话；首条用户消息自动生成标题。
 - 对话消息是用户主动保存的业务数据，Usage Log、Route Attempt 和审计仍不记录正文。
 
+### 对话个人工作区
+
+- `GET /chat/workspace?path=`：浏览当前 OIDC 用户的个人目录。
+- `POST /chat/workspace/upload?path=`：上传单个文件到当前目录。
+- `GET /chat/workspace/download?path=`：下载当前用户的普通文件。
+- 用户 ID 只能来自认证上下文；客户端路径始终是用户目录内的相对路径。完整隔离和错误
+  契约见[对话个人工作区](12-personal-workspace.md)。
+
 ### 用户和限额
 
 - `GET /accounts`

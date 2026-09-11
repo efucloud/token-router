@@ -1,9 +1,16 @@
 import {
   ApiOutlined,
+  ArrowLeftOutlined,
   CheckOutlined,
   CompressOutlined,
   DeleteOutlined,
+  DoubleLeftOutlined,
+  DoubleRightOutlined,
   DownOutlined,
+  DownloadOutlined,
+  FileOutlined,
+  FolderOpenOutlined,
+  FolderOutlined,
   MenuOutlined,
   MessageOutlined,
   PlusOutlined,
@@ -13,39 +20,24 @@ import {
   SendOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  UploadOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { useIntl } from '@umijs/max';
 import {
   Button,
   Empty,
+  FloatButton,
   Input,
-  message as toast,
   Modal,
   Spin,
   Switch,
   Tooltip,
+  theme,
+  message as toast,
 } from 'antd';
-import { useIntl } from '@umijs/max';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  appendConversationMessage,
-  callChatMCPTool,
-  createConversation,
-  deleteConversation,
-  getConversation,
-  getChatCapabilities,
-  listConversations,
-  type ChatCapabilities,
-  type ConversationSummary,
-  updateConversation,
-} from '@/data-plane/conversations';
-import {
-  createChatCompletion,
-  listGatewayModels,
-  type ChatMessage,
-  type ChatRequestMessage,
-} from '@/data-plane/client';
 import {
   chatCompactionPlan,
   chatContextRatio,
@@ -54,9 +46,31 @@ import {
   emptyChatCapabilities,
   mcpToolBindings,
   retryChatRequest,
-  skillSystemMessage,
   SUMMARY_MARKER,
+  skillSystemMessage,
 } from '@/data-plane/chat-runtime';
+import {
+  type ChatMessage,
+  type ChatRequestMessage,
+  createChatCompletion,
+  listGatewayModels,
+} from '@/data-plane/client';
+import {
+  appendConversationMessage,
+  type ChatCapabilities,
+  type ChatWorkspaceListing,
+  type ConversationSummary,
+  callChatMCPTool,
+  createConversation,
+  deleteConversation,
+  getChatCapabilities,
+  getConversation,
+  listChatWorkspace,
+  listConversations,
+  downloadChatWorkspaceFile,
+  uploadChatWorkspaceFile,
+  updateConversation,
+} from '@/data-plane/conversations';
 import { ChatMarkdown } from './chat_markdown_components';
 import styles from './index.less';
 
@@ -73,8 +87,15 @@ const generatedTitle = (content: string) => {
     : normalized;
 };
 
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const ChatPage = () => {
   const intl = useIntl();
+  const { token } = theme.useToken();
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string>();
   const [loadingModels, setLoadingModels] = useState(true);
@@ -86,11 +107,24 @@ const ChatPage = () => {
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [conversationQuery, setConversationQuery] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(min-width: 1181px)').matches,
+  );
   const [capabilities, setCapabilities] = useState<ChatCapabilities>(
     emptyChatCapabilities,
   );
   const [loadingCapabilities, setLoadingCapabilities] = useState(true);
+  const [capabilityTab, setCapabilityTab] = useState<'capabilities' | 'files'>(
+    'capabilities',
+  );
+  const [workspace, setWorkspace] = useState<ChatWorkspaceListing>();
+  const [workspacePath, setWorkspacePath] = useState('');
+  const [loadingWorkspace, setLoadingWorkspace] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string>();
+  const [uploadingWorkspace, setUploadingWorkspace] = useState(false);
+  const [downloadingPath, setDownloadingPath] = useState<string>();
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedMCPServers, setSelectedMCPServers] = useState<string[]>([]);
   const [savingCapabilities, setSavingCapabilities] = useState(false);
@@ -99,6 +133,7 @@ const ChatPage = () => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const scrollVersion =
     messages.length +
     Number(sending) +
@@ -108,6 +143,10 @@ const ChatPage = () => {
     : undefined;
 
   const contextRatio = chatContextRatio(messages, capabilities.policy);
+  const contextPercentage =
+    contextRatio > 0 && contextRatio < 0.1
+      ? `${(contextRatio * 100).toFixed(1)}%`
+      : `${Math.round(contextRatio * 100)}%`;
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true);
@@ -184,11 +223,73 @@ const ChatPage = () => {
     }
   }, [intl]);
 
+  const loadWorkspace = useCallback(
+    async (path: string) => {
+      setLoadingWorkspace(true);
+      setWorkspaceError(undefined);
+      setWorkspacePath(path);
+      try {
+        const result = await listChatWorkspace(path);
+        setWorkspace(result);
+        setWorkspacePath(result.path || '');
+      } catch (error) {
+        setWorkspaceError(
+          error instanceof Error
+            ? error.message
+            : intl.formatMessage({ id: 'chat.workspaceLoadFailed' }),
+        );
+      } finally {
+        setLoadingWorkspace(false);
+      }
+    },
+    [intl],
+  );
+
   useEffect(() => {
     void loadModels();
     void loadHistory();
     void loadCapabilities();
   }, [loadCapabilities, loadHistory, loadModels]);
+
+  useEffect(() => {
+    if (
+      capabilitiesOpen &&
+      capabilityTab === 'files' &&
+      !workspace &&
+      !workspaceError &&
+      !loadingWorkspace
+    ) {
+      void loadWorkspace(workspacePath);
+    }
+  }, [
+    capabilitiesOpen,
+    capabilityTab,
+    loadWorkspace,
+    loadingWorkspace,
+    workspace,
+    workspaceError,
+    workspacePath,
+  ]);
+
+  useEffect(() => {
+    if (activeConversationID || messages.length) return;
+    const defaults = capabilities.mcpServers
+      .filter(
+        (server) => server.status === 'connected' && server.defaultEnabled,
+      )
+      .map((server) => server.name);
+    setSelectedMCPServers((current) =>
+      current.length || !defaults.length ? current : defaults,
+    );
+  }, [activeConversationID, capabilities.mcpServers, messages.length]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1181px)');
+    const syncCapabilityPanel = (event: MediaQueryListEvent) =>
+      setCapabilitiesOpen(event.matches);
+    desktop.addEventListener('change', syncCapabilityPanel);
+    return () => desktop.removeEventListener('change', syncCapabilityPanel);
+  }, []);
 
   useEffect(() => {
     if (scrollVersion > 0) {
@@ -270,7 +371,13 @@ const ChatPage = () => {
     setMessages([]);
     setInput('');
     setSelectedSkills([]);
-    setSelectedMCPServers([]);
+    setSelectedMCPServers(
+      capabilities.mcpServers
+        .filter(
+          (server) => server.status === 'connected' && server.defaultEnabled,
+        )
+        .map((server) => server.name),
+    );
     setHistoryOpen(false);
   };
 
@@ -369,7 +476,7 @@ const ChatPage = () => {
 
   const send = async () => {
     const content = input.trim();
-    if (!content || !model || sending) return;
+    if (!content || !model || sending || loadingCapabilities) return;
     const userMessage: ConversationMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -485,6 +592,24 @@ const ChatPage = () => {
       const tools = [...bindings.values()].map((item) => item.definition);
       const requestMessages: ChatRequestMessage[] = [
         ...skillSystemMessage(capabilities.skills, selectedSkills),
+        ...(selectedMCPServers.includes('builtin')
+          ? [
+              {
+                role: 'system' as const,
+                content:
+                  'The builtin file tools are securely scoped by the server to the current signed-in user personal workspace. Use only workspace-relative paths; never attempt parent paths, another user directory, or a physical server path. When delivering a file, write the finished artifact to this workspace and mention its relative path so the user can download it from the Files tab.',
+              },
+            ]
+          : []),
+        ...(tools.length
+          ? [
+              {
+                role: 'system' as const,
+                content:
+                  'Tools listed on this request are real capabilities in the Token Router service environment. When the user asks to inspect or change that environment, use the relevant tool and report its actual result. Never replace an available tool call with simulated output or claim that you cannot execute it. For an unfamiliar CLI, call discover_commands first; use command for installed CLI programs such as kubectl.',
+              },
+            ]
+          : []),
         ...effectiveHistory,
         { role: 'user', content },
       ];
@@ -493,16 +618,30 @@ const ChatPage = () => {
 
       for (
         let round = 0;
-        round < capabilities.policy.maxToolRounds;
+        round <= capabilities.policy.maxToolRounds;
         round += 1
       ) {
+        const isFinalizationRound =
+          tools.length > 0 && round === capabilities.policy.maxToolRounds;
+        if (isFinalizationRound) {
+          requestMessages.push({
+            role: 'system',
+            content:
+              'The tool-call safety limit has been reached. Do not request more tools. Complete the response using the tool results already available, and clearly state any work that remains unfinished.',
+          });
+        }
         const result = await retryChatRequest(
           (markActivity) => {
             setRuntimeStatus(
               intl.formatMessage({ id: 'chat.statusRequesting' }),
             );
             return createChatCompletion(model, requestMessages, {
-              tools,
+              conversationID,
+              toolChoice: tools.length
+                ? isFinalizationRound
+                  ? 'none'
+                  : 'auto'
+                : undefined,
               onActivity: markActivity,
               onContent: (streamed) => {
                 assistantContent = streamed;
@@ -535,6 +674,7 @@ const ChatPage = () => {
           completed = true;
           break;
         }
+        if (isFinalizationRound) break;
 
         requestMessages.push({
           role: 'assistant',
@@ -613,6 +753,9 @@ const ChatPage = () => {
         finalContent,
         totalTokens || undefined,
       );
+      if (capabilityTab === 'files') {
+        void loadWorkspace(workspacePath);
+      }
     } catch (error) {
       const detail =
         error instanceof Error
@@ -646,8 +789,62 @@ const ChatPage = () => {
     }
   };
 
+  const openWorkspaceDirectory = (path: string) => {
+    void loadWorkspace(path);
+  };
+
+  const openWorkspaceParent = () => {
+    const parts = workspacePath.split('/').filter(Boolean);
+    parts.pop();
+    void loadWorkspace(parts.join('/'));
+  };
+
+  const uploadWorkspaceFile = async (file?: File) => {
+    if (!file) return;
+    setUploadingWorkspace(true);
+    try {
+      await uploadChatWorkspaceFile(workspacePath, file);
+      toast.success(intl.formatMessage({ id: 'chat.workspaceUploadSucceeded' }));
+      await loadWorkspace(workspacePath);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: 'chat.workspaceUploadFailed' }),
+      );
+    } finally {
+      setUploadingWorkspace(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+    }
+  };
+
+  const downloadWorkspaceFile = async (path: string, name: string) => {
+    setDownloadingPath(path);
+    try {
+      const blob = await downloadChatWorkspaceFile(path);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: 'chat.workspaceDownloadFailed' }),
+      );
+    } finally {
+      setDownloadingPath(undefined);
+    }
+  };
+
   return (
-    <main className={styles.chatPage}>
+    <main
+      className={`${styles.chatPage} ${capabilitiesOpen ? '' : styles.chatPageCapabilitiesCollapsed}`}
+    >
       <aside
         className={`${styles.historyPanel} ${historyOpen ? styles.historyPanelOpen : ''}`}
       >
@@ -656,7 +853,10 @@ const ChatPage = () => {
             <MessageOutlined />
             {intl.formatMessage({ id: 'chat.history' })}
           </span>
-          <Tooltip title={intl.formatMessage({ id: 'chat.newConversation' })}>
+          <Tooltip
+            color={token.colorPrimary}
+            title={intl.formatMessage({ id: 'chat.newConversation' })}
+          >
             <Button
               aria-label={intl.formatMessage({ id: 'chat.newConversation' })}
               disabled={sending || loadingConversation}
@@ -667,22 +867,12 @@ const ChatPage = () => {
             />
           </Tooltip>
         </div>
-        <Button
-          block
-          className={styles.newConversationButton}
-          disabled={sending || loadingConversation}
-          icon={<PlusOutlined />}
-          onClick={startNewConversation}
-        >
-          {intl.formatMessage({ id: 'chat.newConversation' })}
-        </Button>
         <Input
           allowClear
           className={styles.conversationSearch}
           onChange={(event) => setConversationQuery(event.target.value)}
           placeholder={intl.formatMessage({ id: 'chat.searchConversation' })}
           prefix={<SearchOutlined />}
-          size="small"
           value={conversationQuery}
         />
         <div className={styles.historySectionLabel}>
@@ -717,7 +907,10 @@ const ChatPage = () => {
                     )}
                   </span>
                 </button>
-                <Tooltip title={intl.formatMessage({ id: 'common.delete' })}>
+                <Tooltip
+                  color={token.colorPrimary}
+                  title={intl.formatMessage({ id: 'common.delete' })}
+                >
                   <Button
                     aria-label={intl.formatMessage({ id: 'common.delete' })}
                     className={styles.historyDelete}
@@ -770,17 +963,6 @@ const ChatPage = () => {
             </span>
           </div>
           <div className={styles.headerActions}>
-            <Tooltip title={intl.formatMessage({ id: 'chat.capabilities' })}>
-              <Button
-                aria-label={intl.formatMessage({ id: 'chat.capabilities' })}
-                className={styles.capabilityToggle}
-                icon={<ToolOutlined />}
-                onClick={() => setCapabilitiesOpen(true)}
-                type="text"
-              >
-                {selectedSkills.length + selectedMCPServers.length || null}
-              </Button>
-            </Tooltip>
             <Button
               className={styles.modelPickerButton}
               disabled={sending || loadingConversation}
@@ -793,18 +975,6 @@ const ChatPage = () => {
               </span>
               <DownOutlined className={styles.modelPickerChevron} />
             </Button>
-            {activeConversation ? (
-              <Tooltip title={intl.formatMessage({ id: 'common.delete' })}>
-                <Button
-                  aria-label={intl.formatMessage({ id: 'common.delete' })}
-                  className={styles.headerDeleteButton}
-                  disabled={sending || loadingConversation}
-                  icon={<DeleteOutlined />}
-                  onClick={() => confirmDeleteConversation(activeConversation)}
-                  type="text"
-                />
-              </Tooltip>
-            ) : null}
           </div>
         </header>
 
@@ -833,7 +1003,7 @@ const ChatPage = () => {
                 >
                   <span className={styles.avatar}>
                     {item.role === 'user' ? (
-                      <UserOutlined />
+                        <UserOutlined color={ token.colorPrimary} />
                     ) : (
                       <RobotOutlined />
                     )}
@@ -883,7 +1053,9 @@ const ChatPage = () => {
           <div className={styles.composer}>
             <Input.TextArea
               autoSize={{ minRows: 1, maxRows: 7 }}
-              disabled={!model || loadingConversation || sending}
+              disabled={
+                !model || loadingConversation || loadingCapabilities || sending
+              }
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={onComposerKeyDown}
               placeholder={intl.formatMessage({
@@ -894,7 +1066,11 @@ const ChatPage = () => {
             <Button
               aria-label={intl.formatMessage({ id: 'chat.send' })}
               disabled={
-                !model || !input.trim() || loadingConversation || sending
+                !model ||
+                !input.trim() ||
+                loadingConversation ||
+                loadingCapabilities ||
+                sending
               }
               icon={<SendOutlined />}
               loading={sending}
@@ -920,7 +1096,13 @@ const ChatPage = () => {
       ) : null}
 
       <aside
-        className={`${styles.capabilityPanel} ${capabilitiesOpen ? styles.capabilityPanelOpen : ''}`}
+        aria-hidden={!capabilitiesOpen}
+        className={`${styles.capabilityPanel} ${
+          capabilitiesOpen
+            ? styles.capabilityPanelOpen
+            : styles.capabilityPanelCollapsed
+        }`}
+        inert={!capabilitiesOpen}
       >
         <div className={styles.capabilityHeader}>
           <span>
@@ -936,7 +1118,35 @@ const ChatPage = () => {
           </Button>
         </div>
 
-        {loadingCapabilities ? (
+        <div className={styles.capabilityTabs} role="tablist">
+          <button
+            aria-selected={capabilityTab === 'capabilities'}
+            className={
+              capabilityTab === 'capabilities' ? styles.capabilityTabActive : ''
+            }
+            onClick={() => setCapabilityTab('capabilities')}
+            role="tab"
+            type="button"
+          >
+            <ToolOutlined />
+            {intl.formatMessage({ id: 'chat.capabilityTab' })}
+          </button>
+          <button
+            aria-selected={capabilityTab === 'files'}
+            className={capabilityTab === 'files' ? styles.capabilityTabActive : ''}
+            onClick={() => {
+              setCapabilityTab('files');
+              void loadWorkspace(workspacePath);
+            }}
+            role="tab"
+            type="button"
+          >
+            <FolderOpenOutlined />
+            {intl.formatMessage({ id: 'chat.filesTab' })}
+          </button>
+        </div>
+
+        {capabilityTab === 'capabilities' ? loadingCapabilities ? (
           <div className={styles.capabilityLoading}>
             <Spin size="small" />
           </div>
@@ -945,7 +1155,7 @@ const ChatPage = () => {
             <section className={styles.contextCard}>
               <div className={styles.contextGauge}>
                 <span style={{ '--context': contextRatio } as CSSProperties} />
-                <strong>{Math.round(contextRatio * 100)}%</strong>
+                <strong>{contextPercentage}</strong>
               </div>
               <div>
                 <strong>{intl.formatMessage({ id: 'chat.context' })}</strong>
@@ -979,6 +1189,16 @@ const ChatPage = () => {
                 <small>
                   {capabilities.policy.maxRetries}{' '}
                   {intl.formatMessage({ id: 'chat.attempts' })}
+                </small>
+              </span>
+              <span className={styles.toolRoundPolicy}>
+                <ToolOutlined />
+                <strong>{intl.formatMessage({ id: 'chat.toolRounds' })}</strong>
+                <small>
+                  {intl.formatMessage(
+                    { id: 'chat.toolRoundsHint' },
+                    { rounds: capabilities.policy.maxToolRounds },
+                  )}
                 </small>
               </span>
             </div>
@@ -1026,7 +1246,7 @@ const ChatPage = () => {
 
             <section className={styles.capabilitySection}>
               <header>
-                <span>MCP</span>
+                <span>Tools / MCP</span>
                 <small>{capabilities.mcpServers.length}</small>
               </header>
               {capabilities.mcpServers.length ? (
@@ -1099,8 +1319,191 @@ const ChatPage = () => {
               {intl.formatMessage({ id: 'chat.refreshCapabilities' })}
             </Button>
           </div>
+        ) : (
+          <div className={styles.workspaceBody}>
+            <div className={styles.workspaceToolbar}>
+              <Button
+                aria-label={intl.formatMessage({ id: 'chat.workspaceParent' })}
+                disabled={!workspacePath || loadingWorkspace}
+                icon={<ArrowLeftOutlined />}
+                onClick={openWorkspaceParent}
+                size="small"
+                type="text"
+              />
+              <div className={styles.workspaceBreadcrumbs}>
+                <button
+                  onClick={() => openWorkspaceDirectory('')}
+                  type="button"
+                >
+                  {intl.formatMessage({ id: 'chat.workspaceRoot' })}
+                </button>
+                {workspacePath
+                  .split('/')
+                  .filter(Boolean)
+                  .map((part, index, parts) => (
+                    <span key={parts.slice(0, index + 1).join('/')}>
+                      <i>/</i>
+                      <button
+                        onClick={() =>
+                          openWorkspaceDirectory(parts.slice(0, index + 1).join('/'))
+                        }
+                        type="button"
+                      >
+                        {part}
+                      </button>
+                    </span>
+                  ))}
+              </div>
+              <Tooltip
+                color={token.colorPrimary}
+                title={intl.formatMessage({ id: 'common.refresh' })}
+              >
+                <Button
+                  aria-label={intl.formatMessage({ id: 'common.refresh' })}
+                  icon={<ReloadOutlined />}
+                  loading={loadingWorkspace}
+                  onClick={() => void loadWorkspace(workspacePath)}
+                  size="small"
+                  type="text"
+                />
+              </Tooltip>
+            </div>
+
+            <div className={styles.workspaceIntro}>
+              <span>
+                <strong>{intl.formatMessage({ id: 'chat.personalWorkspace' })}</strong>
+                <small>
+                  {intl.formatMessage({ id: 'chat.personalWorkspaceHint' })}
+                </small>
+              </span>
+              <Button
+                icon={<UploadOutlined />}
+                loading={uploadingWorkspace}
+                onClick={() => uploadInputRef.current?.click()}
+                size="small"
+                type="primary"
+              >
+                {intl.formatMessage({ id: 'chat.uploadFile' })}
+              </Button>
+              <input
+                hidden
+                onChange={(event) =>
+                  void uploadWorkspaceFile(event.target.files?.[0])
+                }
+                ref={uploadInputRef}
+                type="file"
+              />
+            </div>
+
+            {workspaceError ? (
+              <div className={styles.workspaceError}>
+                <FolderOutlined />
+                <strong>{intl.formatMessage({ id: 'chat.workspaceUnavailable' })}</strong>
+                <small>{workspaceError}</small>
+                <Button
+                  onClick={() => void loadWorkspace(workspacePath)}
+                  size="small"
+                >
+                  {intl.formatMessage({ id: 'chat.retry' })}
+                </Button>
+              </div>
+            ) : loadingWorkspace && !workspace ? (
+              <div className={styles.capabilityLoading}>
+                <Spin size="small" />
+              </div>
+            ) : workspace?.entries.length ? (
+              <div className={styles.workspaceList}>
+                {workspace.entries.map((entry) => (
+                  <div className={styles.workspaceItem} key={entry.path}>
+                    <button
+                      disabled={entry.type !== 'directory'}
+                      onClick={() => openWorkspaceDirectory(entry.path)}
+                      type="button"
+                    >
+                      <span
+                        className={
+                          entry.type === 'directory'
+                            ? styles.workspaceFolderIcon
+                            : styles.workspaceFileIcon
+                        }
+                      >
+                        {entry.type === 'directory' ? (
+                          <FolderOutlined />
+                        ) : (
+                          <FileOutlined />
+                        )}
+                      </span>
+                      <span>
+                        <strong>{entry.name}</strong>
+                        <small>
+                          {entry.type === 'directory'
+                            ? intl.formatMessage({ id: 'chat.folder' })
+                            : entry.type === 'symlink'
+                              ? intl.formatMessage({ id: 'chat.symbolicLink' })
+                              : `${formatFileSize(entry.size)} · ${new Date(
+                                  entry.updatedAt,
+                                ).toLocaleDateString(intl.locale, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}`}
+                        </small>
+                      </span>
+                    </button>
+                    {entry.type === 'file' ? (
+                      <Tooltip
+                        color={token.colorPrimary}
+                        title={intl.formatMessage({ id: 'chat.downloadFile' })}
+                      >
+                        <Button
+                          aria-label={intl.formatMessage({ id: 'chat.downloadFile' })}
+                          icon={<DownloadOutlined />}
+                          loading={downloadingPath === entry.path}
+                          onClick={() =>
+                            void downloadWorkspaceFile(entry.path, entry.name)
+                          }
+                          size="small"
+                          type="text"
+                        />
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty
+                className={styles.workspaceEmpty}
+                description={intl.formatMessage({ id: 'chat.workspaceEmpty' })}
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            )}
+            {workspace ? (
+              <small className={styles.workspaceLimit}>
+                {intl.formatMessage(
+                  { id: 'chat.workspaceUploadLimit' },
+                  { size: formatFileSize(workspace.maxUploadBytes) },
+                )}
+              </small>
+            ) : null}
+          </div>
         )}
       </aside>
+
+      <FloatButton
+        aria-expanded={capabilitiesOpen}
+        aria-label={intl.formatMessage({ id: 'chat.toggleCapabilities' })}
+        badge={{ count: selectedSkills.length + selectedMCPServers.length }}
+        className={`${styles.capabilityFloatButton} ${
+          capabilitiesOpen ? styles.capabilityFloatButtonActive : ''
+        }`}
+        icon={
+          capabilitiesOpen ? <DoubleRightOutlined /> : <DoubleLeftOutlined />
+        }
+        onClick={() => setCapabilitiesOpen((current) => !current)}
+        tooltip={{
+          color: token.colorPrimary,
+          title: intl.formatMessage({ id: 'chat.toggleCapabilities' }),
+        }}
+      />
 
       <Modal
         centered

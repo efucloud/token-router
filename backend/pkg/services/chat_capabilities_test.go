@@ -32,14 +32,14 @@ func TestDiscoverChatSkillsAndValidateSelection(t *testing.T) {
 	if len(issues) != 0 || len(skills) != 1 || skills[0].Name != "release-notes" || skills[0].Content != content {
 		t.Fatalf("unexpected skill discovery: skills=%#v issues=%#v", skills, issues)
 	}
-	normalized, _, err := normalizeChatSelections([]string{" release-notes "}, nil)
+	normalized, _, err := normalizeChatSelections(context.Background(), []string{" release-notes "}, nil)
 	if err != nil || len(normalized) != 1 || normalized[0] != "release-notes" {
 		t.Fatalf("normalize known skill: skills=%#v err=%v", normalized, err)
 	}
-	if _, _, err = normalizeChatSelections([]string{"missing"}, nil); err == nil {
+	if _, _, err = normalizeChatSelections(context.Background(), []string{"missing"}, nil); err == nil {
 		t.Fatal("unknown skill was accepted")
 	}
-	if _, _, err = normalizeChatSelections([]string{"release-notes", "release-notes"}, nil); err == nil {
+	if _, _, err = normalizeChatSelections(context.Background(), []string{"release-notes", "release-notes"}, nil); err == nil {
 		t.Fatal("duplicate skill was accepted")
 	}
 }
@@ -102,5 +102,96 @@ func TestChatMCPRejectsRelativeCommand(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "absolute path") {
 		t.Fatalf("expected absolute command path error, got %v", err)
+	}
+}
+
+func TestBuiltinChatToolsAndCommandDiscovery(t *testing.T) {
+	workspace := t.TempDir()
+	original := config.ApplicationConfig.Chat
+	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
+		Enabled: true, DefaultEnabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: workspace,
+		CommandEnabled: true, CommandTimeoutSeconds: 2, MaxOutputBytes: 4096,
+	}}
+	config.ApplicationConfig.Chat.Default()
+	t.Cleanup(func() { config.ApplicationConfig.Chat = original })
+
+	ctx := context.WithValue(context.Background(), config.RequestUserId, "chat-user")
+	capabilities, err := (ChatService{}).Capabilities(ctx)
+	if err != nil {
+		t.Fatalf("get capabilities: %v", err)
+	}
+	if len(capabilities.MCPServers) != 1 || capabilities.MCPServers[0].Name != builtinChatServerName ||
+		capabilities.MCPServers[0].Kind != "builtin" || !capabilities.MCPServers[0].DefaultEnabled ||
+		len(capabilities.MCPServers[0].Tools) != 8 {
+		t.Fatalf("unexpected builtin capability: %#v", capabilities.MCPServers)
+	}
+
+	service := ChatService{}
+	result, err := service.CallMCPTool(ctx, builtinChatServerName, "write_file", map[string]any{
+		"path": "manifests/nginx.yaml", "content": "kind: Deployment\nimage: nginx\n",
+	})
+	if err != nil || result.IsError {
+		t.Fatalf("write file: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "edit_file", map[string]any{
+		"path": "manifests/nginx.yaml", "oldText": "image: nginx", "newText": "image: nginx:stable",
+	})
+	if err != nil || result.IsError {
+		t.Fatalf("edit file: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "apply_patch", map[string]any{
+		"patchText": "*** Begin Patch\n*** Update File: manifests/nginx.yaml\n@@\n-image: nginx:stable\n+image: nginx:alpine\n*** Add File: manifests/README.md\n+Managed by Token Router.\n*** End Patch",
+	})
+	if err != nil || result.IsError || !strings.Contains(result.Content, "README.md") {
+		t.Fatalf("apply patch: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "read_file", map[string]any{
+		"path": "manifests/nginx.yaml",
+	})
+	if err != nil || result.IsError || !strings.Contains(result.Content, "nginx:alpine") {
+		t.Fatalf("read file: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "search_files", map[string]any{
+		"query": "nginx:alpine",
+	})
+	if err != nil || result.IsError || !strings.Contains(result.Content, "manifests/nginx.yaml") {
+		t.Fatalf("search files: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "command", map[string]any{
+		"command": "printf command-ok",
+	})
+	if err != nil || result.IsError || !strings.Contains(result.Content, "command-ok") {
+		t.Fatalf("run command: result=%#v err=%v", result, err)
+	}
+	result, err = service.CallMCPTool(ctx, builtinChatServerName, "discover_commands", map[string]any{
+		"query": "sh",
+	})
+	if err != nil || result.IsError || !strings.Contains(result.Content, `"commands"`) {
+		t.Fatalf("discover commands: result=%#v err=%v", result, err)
+	}
+}
+
+func TestBuiltinFileToolsRejectWorkspaceEscape(t *testing.T) {
+	workspace := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatalf("write outside file: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(workspace, "outside")); err != nil {
+		t.Fatalf("create outside symlink: %v", err)
+	}
+	original := config.ApplicationConfig.Chat
+	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
+		Enabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: workspace,
+	}}
+	config.ApplicationConfig.Chat.Default()
+	t.Cleanup(func() { config.ApplicationConfig.Chat = original })
+
+	ctx := context.WithValue(context.Background(), config.RequestUserId, "chat-user")
+	for _, path := range []string{"../secret.txt", "outside/secret.txt", filepath.Join(outside, "secret.txt")} {
+		result, err := (ChatService{}).CallMCPTool(ctx, builtinChatServerName, "read_file", map[string]any{"path": path})
+		if err != nil || !result.IsError {
+			t.Fatalf("expected path %q to be rejected: result=%#v err=%v", path, result, err)
+		}
 	}
 }

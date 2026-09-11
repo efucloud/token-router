@@ -150,8 +150,14 @@ openssl rand -base64 32
 - `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
 - `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
 - `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
+- `TOKEN_ROUTER_CHAT_BUILTIN_TOOLS_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_DEFAULT_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_COMMAND_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`
+- `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES`
 
-容器镜像可在非 root 模式下直接使用 Skills、Streamable HTTP MCP 及 Node/Python stdio MCP。
+容器镜像可在非 root 模式下直接使用按登录用户隔离的个人文件工作区、内置文件/命令工具、
+Skills、Streamable HTTP MCP 及 Node/Python stdio MCP。
 挂载目录、Secret 约束和 Compose/Kubernetes 示例见
 [容器内 Skills 与 MCP](docs/deployment/container-capabilities.md)。
 
@@ -171,6 +177,8 @@ go run ./cmd/start.go -c ./config/config.yaml
 ```
 
 API 服务监听 `http://localhost:9006`。
+本地配置默认把个人工作区写入进程运行目录下的 `workspace`；容器部署仍使用
+`/efucloud/workspaces` 或 `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE` 指定的挂载目录。
 
 仅执行迁移而不启动服务：
 

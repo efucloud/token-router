@@ -7,6 +7,7 @@ services:
     environment:
       TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES: /efucloud/skills
       TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE: /efucloud/config/mcp.yaml
+      TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE: /efucloud/workspaces
       TOKEN_ROUTER_OIDC_CLIENT_SECRET: ${TOKEN_ROUTER_OIDC_CLIENT_SECRET:?set TOKEN_ROUTER_OIDC_CLIENT_SECRET}
       TOKEN_ROUTER_GATEWAY_SECRET_KEY: ${TOKEN_ROUTER_GATEWAY_SECRET_KEY:?set TOKEN_ROUTER_GATEWAY_SECRET_KEY}
     volumes:
@@ -16,9 +17,11 @@ services:
       - ${TOKEN_ROUTER_MCP_PROGRAMS_DIR:?set TOKEN_ROUTER_MCP_PROGRAMS_DIR}:/efucloud/mcp:ro
       - token-router-cache:/efucloud/.cache
       - token-router-home:/efucloud/.home
+      - token-router-workspace:/efucloud/workspaces
     security_opt:
       - no-new-privileges:true
 
 volumes:
   token-router-cache:
   token-router-home:
+  token-router-workspace:

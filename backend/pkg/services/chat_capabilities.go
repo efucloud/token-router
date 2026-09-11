@@ -100,13 +100,16 @@ func parseChatSkillFrontmatter(content string) (chatSkillFrontmatter, error) {
 	return result, nil
 }
 
-func chatCapabilityNames() (map[string]struct{}, map[string]struct{}) {
+func chatCapabilityNames(ctx context.Context) (map[string]struct{}, map[string]struct{}) {
 	skills, _ := discoverChatSkills()
 	skillNames := make(map[string]struct{}, len(skills))
 	for _, skill := range skills {
 		skillNames[skill.Name] = struct{}{}
 	}
 	mcpNames := make(map[string]struct{})
+	if config.ApplicationConfig.Chat.BuiltinTools.Enabled {
+		mcpNames[builtinChatServerName] = struct{}{}
+	}
 	for _, server := range config.ApplicationConfig.Chat.MCPServers {
 		if server.Enabled && chatCapabilityName.MatchString(server.Name) {
 			mcpNames[server.Name] = struct{}{}
@@ -285,11 +288,22 @@ func (ChatService) Capabilities(ctx context.Context) (dtos.ChatCapabilities, err
 	}
 	result.Skills, result.Issues = discoverChatSkills()
 	seen := map[string]struct{}{}
+	if settings.BuiltinTools.Enabled {
+		capability := builtinChatCapability(ctx)
+		if _, workspaceErr := personalWorkspaceRoot(ctx); workspaceErr != nil {
+			capability.Status = "failed"
+			capability.Error = workspaceErr.Error()
+			capability.Tools = []dtos.ChatMCPToolCapability{}
+			result.Issues = append(result.Issues, "personal workspace is unavailable")
+		}
+		result.MCPServers = append(result.MCPServers, capability)
+		seen[builtinChatServerName] = struct{}{}
+	}
 	for _, server := range settings.MCPServers {
 		if !server.Enabled {
 			continue
 		}
-		capability := dtos.ChatMCPServerCapability{Name: server.Name, Status: "connected", Tools: []dtos.ChatMCPToolCapability{}}
+		capability := dtos.ChatMCPServerCapability{Name: server.Name, Kind: "mcp", Status: "connected", Tools: []dtos.ChatMCPToolCapability{}}
 		if !chatCapabilityName.MatchString(server.Name) {
 			capability.Status, capability.Error = "failed", "invalid server name"
 			result.MCPServers = append(result.MCPServers, capability)
@@ -322,6 +336,9 @@ func (ChatService) CallMCPTool(ctx context.Context, serverName, toolName string,
 	accountID, err := chatAccountID(ctx)
 	if err != nil {
 		return dtos.ChatMCPToolResult{}, err
+	}
+	if serverName == builtinChatServerName {
+		return callChatBuiltinTool(ctx, toolName, arguments)
 	}
 	server, ok := chatMCPServer(serverName)
 	if !ok {

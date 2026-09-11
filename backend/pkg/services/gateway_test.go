@@ -70,6 +70,85 @@ func TestResponsesTokenEstimateUsesMaxOutputTokens(t *testing.T) {
 	}
 }
 
+func TestInjectConversationToolsBuildsDefinitionsOnServer(t *testing.T) {
+	db := dashboardTestDatabase(t)
+	previousConfig := config.ApplicationConfig
+	config.ApplicationConfig = &config.Config{Chat: config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
+		Enabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: t.TempDir(),
+	}}}
+	config.ApplicationConfig.Chat.Default()
+	t.Cleanup(func() { config.ApplicationConfig = previousConfig })
+
+	principal := createGatewayPrincipal(t, db, daos.APIToken{
+		GatewayRecord: daos.GatewayRecord{ID: "tool-injection-token"}, AccountID: "tool-injection-user", Name: "tools",
+		KeyHash: "tool-injection-hash", KeyPrefix: "tr_tool_injection", Status: "active",
+	})
+	conversation := daos.ChatConversation{
+		GatewayRecord: daos.GatewayRecord{ID: "tool-injection-conversation"},
+		AccountID:     principal.Account.ID, Model: "unified-model", Skills: "[]",
+		MCPServers: `["builtin"]`, MCPServersInitialized: true,
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	body, err := (GatewayService{}).InjectConversationTools(
+		context.Background(), principal, conversation.ID,
+		[]byte(`{"model":"unified-model","messages":[],"tool_choice":"auto","tools":[{"type":"function","function":{"name":"client_tool"}}]}`),
+	)
+	if err != nil {
+		t.Fatalf("inject conversation tools: %v", err)
+	}
+	var payload map[string]any
+	if err = json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode injected request: %v", err)
+	}
+	if payload["tool_choice"] != "auto" {
+		t.Fatalf("tool choice was not preserved: %#v", payload)
+	}
+	tools, ok := payload["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatalf("server tools were not injected: %#v", payload["tools"])
+	}
+	for _, item := range tools {
+		definition, _ := item.(map[string]any)
+		function, _ := definition["function"].(map[string]any)
+		name, _ := function["name"].(string)
+		if name == "client_tool" || !strings.HasPrefix(name, "mcp__builtin__") {
+			t.Fatalf("unexpected injected tool name %q", name)
+		}
+	}
+}
+
+func TestInjectConversationToolsRequiresToolChoice(t *testing.T) {
+	db := dashboardTestDatabase(t)
+	principal := createGatewayPrincipal(t, db, daos.APIToken{
+		GatewayRecord: daos.GatewayRecord{ID: "no-choice-token"}, AccountID: "no-choice-user", Name: "no choice",
+		KeyHash: "no-choice-hash", KeyPrefix: "tr_no_choice", Status: "active",
+	})
+	conversation := daos.ChatConversation{
+		GatewayRecord: daos.GatewayRecord{ID: "no-choice-conversation"},
+		AccountID:     principal.Account.ID, Model: "unified-model", Skills: "[]", MCPServers: "[]", MCPServersInitialized: true,
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+	body, err := (GatewayService{}).InjectConversationTools(
+		context.Background(), principal, conversation.ID,
+		[]byte(`{"model":"unified-model","messages":[],"tools":[{"type":"function"}]}`),
+	)
+	if err != nil {
+		t.Fatalf("prepare request without tool choice: %v", err)
+	}
+	var payload map[string]any
+	if err = json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode prepared request: %v", err)
+	}
+	if _, exists := payload["tools"]; exists {
+		t.Fatalf("client-provided tools were not removed: %#v", payload)
+	}
+}
+
 func TestResponsesProxySupportsJSONAndStreaming(t *testing.T) {
 	db := dashboardTestDatabase(t)
 	previousConfig := config.ApplicationConfig

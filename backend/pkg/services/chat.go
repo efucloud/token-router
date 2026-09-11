@@ -33,10 +33,35 @@ func chatAccountID(ctx context.Context) (string, error) {
 	return accountID, nil
 }
 
-func chatConversationSummary(model daos.ChatConversation) dtos.ChatConversationSummary {
+func defaultChatMCPServers(ctx context.Context) []string {
+	settings := config.ApplicationConfig.Chat.BuiltinTools
+	if settings.Enabled && settings.DefaultEnabled {
+		return []string{builtinChatServerName}
+	}
+	return []string{}
+}
+
+func chatConversationMCPServers(model daos.ChatConversation, defaults []string) []string {
+	selected := chatSelection(model.MCPServers)
+	if model.MCPServersInitialized {
+		return selected
+	}
+	seen := make(map[string]struct{}, len(selected))
+	for _, name := range selected {
+		seen[name] = struct{}{}
+	}
+	for _, name := range defaults {
+		if _, exists := seen[name]; !exists {
+			selected = append(selected, name)
+		}
+	}
+	return selected
+}
+
+func chatConversationSummary(model daos.ChatConversation, defaultMCPServers []string) dtos.ChatConversationSummary {
 	return dtos.ChatConversationSummary{
 		ID: model.ID, Title: model.Title, Model: model.Model,
-		Skills: chatSelection(model.Skills), MCPServers: chatSelection(model.MCPServers),
+		Skills: chatSelection(model.Skills), MCPServers: chatConversationMCPServers(model, defaultMCPServers),
 		CreatedAt: model.CreatedAt, UpdatedAt: model.UpdatedAt,
 	}
 }
@@ -54,8 +79,8 @@ func encodeChatSelection(value []string) string {
 	return string(encoded)
 }
 
-func normalizeChatSelections(skills, mcpServers []string) ([]string, []string, error) {
-	availableSkills, availableMCP := chatCapabilityNames()
+func normalizeChatSelections(ctx context.Context, skills, mcpServers []string) ([]string, []string, error) {
+	availableSkills, availableMCP := chatCapabilityNames(ctx)
 	normalize := func(kind string, values []string, available map[string]struct{}) ([]string, error) {
 		result := make([]string, 0, len(values))
 		seen := make(map[string]struct{}, len(values))
@@ -108,8 +133,9 @@ func (ChatService) List(ctx context.Context) ([]dtos.ChatConversationSummary, co
 		return nil, chatError(err, http.StatusInternalServerError)
 	}
 	result := make([]dtos.ChatConversationSummary, 0, len(conversations))
+	defaultMCPServers := defaultChatMCPServers(ctx)
 	for _, conversation := range conversations {
-		result = append(result, chatConversationSummary(conversation))
+		result = append(result, chatConversationSummary(conversation, defaultMCPServers))
 	}
 	return result, common.ErrorData{}
 }
@@ -120,7 +146,7 @@ func (ChatService) Create(ctx context.Context, input dtos.ChatConversationCreate
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusUnauthorized)
 	}
 	input.Model = strings.TrimSpace(input.Model)
-	input.Skills, input.MCPServers, err = normalizeChatSelections(input.Skills, input.MCPServers)
+	input.Skills, input.MCPServers, err = normalizeChatSelections(ctx, input.Skills, input.MCPServers)
 	if err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
 	}
@@ -130,12 +156,12 @@ func (ChatService) Create(ctx context.Context, input dtos.ChatConversationCreate
 	conversation := daos.ChatConversation{
 		GatewayRecord: daos.GatewayRecord{ID: utils.GenerateDatabaseId()},
 		AccountID:     accountID, Model: input.Model, Skills: encodeChatSelection(input.Skills),
-		MCPServers: encodeChatSelection(input.MCPServers),
+		MCPServers: encodeChatSelection(input.MCPServers), MCPServersInitialized: true,
 	}
 	if err = config.DBConnect.WithContext(ctx).Create(&conversation).Error; err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusInternalServerError)
 	}
-	return chatConversationSummary(conversation), common.ErrorData{}
+	return chatConversationSummary(conversation, nil), common.ErrorData{}
 }
 
 func (ChatService) Get(ctx context.Context, id string) (dtos.ChatConversationDetail, common.ErrorData) {
@@ -155,7 +181,7 @@ func (ChatService) Get(ctx context.Context, id string) (dtos.ChatConversationDet
 		Order("sequence ASC").Find(&messages).Error; err != nil {
 		return dtos.ChatConversationDetail{}, chatError(err, http.StatusInternalServerError)
 	}
-	result := dtos.ChatConversationDetail{ChatConversationSummary: chatConversationSummary(conversation), Messages: make([]dtos.ChatMessageDetail, 0, len(messages))}
+	result := dtos.ChatConversationDetail{ChatConversationSummary: chatConversationSummary(conversation, defaultChatMCPServers(ctx)), Messages: make([]dtos.ChatMessageDetail, 0, len(messages))}
 	for _, message := range messages {
 		result.Messages = append(result.Messages, chatMessageDetail(message))
 	}
@@ -169,7 +195,7 @@ func (ChatService) Update(ctx context.Context, id string, input dtos.ChatConvers
 	}
 	input.Title = strings.TrimSpace(input.Title)
 	input.Model = strings.TrimSpace(input.Model)
-	input.Skills, input.MCPServers, err = normalizeChatSelections(input.Skills, input.MCPServers)
+	input.Skills, input.MCPServers, err = normalizeChatSelections(ctx, input.Skills, input.MCPServers)
 	if err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
 	}
@@ -178,7 +204,7 @@ func (ChatService) Update(ctx context.Context, id string, input dtos.ChatConvers
 	}
 	updates := map[string]any{
 		"model": input.Model, "skills": encodeChatSelection(input.Skills),
-		"mcp_servers": encodeChatSelection(input.MCPServers), "updated_at": time.Now(),
+		"mcp_servers": encodeChatSelection(input.MCPServers), "mcp_servers_initialized": true, "updated_at": time.Now(),
 	}
 	if input.Title != "" {
 		updates["title"] = input.Title
@@ -195,7 +221,7 @@ func (ChatService) Update(ctx context.Context, id string, input dtos.ChatConvers
 	if err = config.DBConnect.WithContext(ctx).Where("id = ? AND account_id = ?", id, accountID).First(&conversation).Error; err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusInternalServerError)
 	}
-	return chatConversationSummary(conversation), common.ErrorData{}
+	return chatConversationSummary(conversation, nil), common.ErrorData{}
 }
 
 func (ChatService) AppendMessage(ctx context.Context, conversationID string, input dtos.ChatMessageCreate) (dtos.ChatMessageDetail, common.ErrorData) {

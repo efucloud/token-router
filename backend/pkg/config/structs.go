@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"strings"
 )
 
 type Config struct {
@@ -14,14 +15,26 @@ type Config struct {
 }
 
 type ChatConfig struct {
-	ContextWindowTokens int             `json:"contextWindowTokens" yaml:"contextWindowTokens" description:"默认上下文窗口Token数"`
-	CompactThreshold    float64         `json:"compactThreshold" yaml:"compactThreshold" description:"自动压缩触发比例"`
-	CompactKeepRecent   int             `json:"compactKeepRecent" yaml:"compactKeepRecent" description:"压缩时保留的最近消息数"`
-	MaxRetries          int             `json:"maxRetries" yaml:"maxRetries" description:"单次模型请求最大尝试次数"`
-	RetryBaseMillis     int             `json:"retryBaseMillis" yaml:"retryBaseMillis" description:"重试基础等待毫秒数"`
-	RetryMaxMillis      int             `json:"retryMaxMillis" yaml:"retryMaxMillis" description:"重试最大等待毫秒数"`
-	SkillDirectories    []string        `json:"skillDirectories" yaml:"skillDirectories" description:"Skill白名单目录"`
-	MCPServers          []ChatMCPConfig `json:"mcpServers" yaml:"mcpServers" description:"MCP服务端配置"`
+	ContextWindowTokens int                    `json:"contextWindowTokens" yaml:"contextWindowTokens" description:"默认上下文窗口Token数"`
+	CompactThreshold    float64                `json:"compactThreshold" yaml:"compactThreshold" description:"自动压缩触发比例"`
+	CompactKeepRecent   int                    `json:"compactKeepRecent" yaml:"compactKeepRecent" description:"压缩时保留的最近消息数"`
+	MaxRetries          int                    `json:"maxRetries" yaml:"maxRetries" description:"单次模型请求最大尝试次数"`
+	RetryBaseMillis     int                    `json:"retryBaseMillis" yaml:"retryBaseMillis" description:"重试基础等待毫秒数"`
+	RetryMaxMillis      int                    `json:"retryMaxMillis" yaml:"retryMaxMillis" description:"重试最大等待毫秒数"`
+	SkillDirectories    []string               `json:"skillDirectories" yaml:"skillDirectories" description:"Skill白名单目录"`
+	MCPServers          []ChatMCPConfig        `json:"mcpServers" yaml:"mcpServers" description:"MCP服务端配置"`
+	BuiltinTools        ChatBuiltinToolsConfig `json:"builtinTools" yaml:"builtinTools" description:"进程内置工具配置"`
+}
+
+type ChatBuiltinToolsConfig struct {
+	Enabled               bool     `json:"enabled" yaml:"enabled" description:"是否发布个人工作区与内置文件工具"`
+	DefaultEnabled        bool     `json:"defaultEnabled" yaml:"defaultEnabled" description:"新会话是否默认启用内置工具"`
+	AllowedRoles          []string `json:"allowedRoles" yaml:"allowedRoles" description:"允许使用command的系统角色，*表示所有已认证用户"`
+	WorkspaceDirectory    string   `json:"workspaceDirectory" yaml:"workspaceDirectory" description:"所有用户个人工作区的共同根目录"`
+	CommandEnabled        bool     `json:"commandEnabled" yaml:"commandEnabled" description:"是否发布命令执行工具"`
+	CommandTimeoutSeconds int      `json:"commandTimeoutSeconds" yaml:"commandTimeoutSeconds" description:"命令默认和最大超时秒数"`
+	MaxOutputBytes        int64    `json:"maxOutputBytes" yaml:"maxOutputBytes" description:"单次工具结果最大字节数"`
+	MaxUploadBytes        int64    `json:"maxUploadBytes" yaml:"maxUploadBytes" description:"个人工作区单文件上传最大字节数"`
 }
 
 type ChatMCPConfig struct {
@@ -55,6 +68,21 @@ func (c *ChatConfig) Default() {
 	}
 	if c.RetryMaxMillis <= 0 {
 		c.RetryMaxMillis = 8000
+	}
+	if strings.TrimSpace(c.BuiltinTools.WorkspaceDirectory) == "" {
+		c.BuiltinTools.WorkspaceDirectory = "workspace"
+	}
+	if len(c.BuiltinTools.AllowedRoles) == 0 {
+		c.BuiltinTools.AllowedRoles = []string{"admin"}
+	}
+	if c.BuiltinTools.CommandTimeoutSeconds <= 0 {
+		c.BuiltinTools.CommandTimeoutSeconds = 120
+	}
+	if c.BuiltinTools.MaxOutputBytes <= 0 {
+		c.BuiltinTools.MaxOutputBytes = 1 << 20
+	}
+	if c.BuiltinTools.MaxUploadBytes <= 0 {
+		c.BuiltinTools.MaxUploadBytes = 32 << 20
 	}
 }
 

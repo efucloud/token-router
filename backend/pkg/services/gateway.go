@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,6 +34,10 @@ type GatewayPrincipal struct {
 }
 
 const systemTokenUsageID = "system"
+
+const GatewayConversationHeader = "X-Token-Router-Conversation-Id"
+
+var gatewayChatToolNameInvalid = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
 type GatewayModel struct {
 	ID           string
@@ -518,6 +523,75 @@ func rewriteGatewayRequest(body []byte, upstreamModel, endpoint string, streamin
 		}
 		options["include_usage"] = true
 		payload["stream_options"] = options
+	}
+	return json.Marshal(payload)
+}
+
+func gatewayChatToolName(server, tool string) string {
+	name := gatewayChatToolNameInvalid.ReplaceAllString("mcp__"+server+"__"+tool, "_")
+	if len(name) > 64 {
+		return name[:64]
+	}
+	return name
+}
+
+// InjectConversationTools keeps tool definitions under server control. The
+// browser identifies the persisted conversation and only controls tool use
+// through tool_choice.
+func (GatewayService) InjectConversationTools(ctx context.Context, principal GatewayPrincipal, conversationID string, body []byte) ([]byte, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return body, nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	delete(payload, "tools")
+	if _, requested := payload["tool_choice"]; !requested {
+		return json.Marshal(payload)
+	}
+
+	var conversation daos.ChatConversation
+	if err := config.DBConnect.WithContext(ctx).
+		Where("id = ? AND account_id = ?", conversationID, principal.Account.ID).
+		First(&conversation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("chat conversation does not exist")
+		}
+		return nil, err
+	}
+	selected := chatConversationMCPServers(conversation, defaultChatMCPServers(ctx))
+	selectedSet := make(map[string]struct{}, len(selected))
+	for _, server := range selected {
+		selectedSet[server] = struct{}{}
+	}
+
+	chatCtx := context.WithValue(ctx, config.RequestUserId, principal.Account.ID)
+	capabilities, err := (ChatService{}).Capabilities(chatCtx)
+	if err != nil {
+		return nil, err
+	}
+	tools := make([]map[string]any, 0)
+	for _, server := range capabilities.MCPServers {
+		if server.Status != "connected" {
+			continue
+		}
+		if _, enabled := selectedSet[server.Name]; !enabled {
+			continue
+		}
+		for _, tool := range server.Tools {
+			tools = append(tools, map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name": gatewayChatToolName(server.Name, tool.Name), "description": tool.Description,
+					"parameters": tool.InputSchema,
+				},
+			})
+		}
+	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
 	}
 	return json.Marshal(payload)
 }

@@ -105,7 +105,8 @@ export const listGatewayModels = async () => {
 };
 
 type ChatCompletionOptions = {
-  tools?: ChatToolDefinition[];
+  conversationID?: string;
+  toolChoice?: 'auto' | 'none';
   onContent?: (content: string) => void;
   onActivity?: () => void;
   signal?: AbortSignal;
@@ -124,14 +125,15 @@ export const createChatCompletion = async (
       Accept: 'application/x-ndjson',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token.access_token}`,
+      ...(options.conversationID
+        ? { 'X-Token-Router-Conversation-Id': options.conversationID }
+        : {}),
     },
     body: JSON.stringify({
       model,
       messages,
       stream: true,
-      ...(options.tools?.length
-        ? { tools: options.tools, tool_choice: 'auto' }
-        : {}),
+      ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
     }),
     signal: options.signal,
   });

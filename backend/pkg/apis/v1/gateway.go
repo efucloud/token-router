@@ -145,6 +145,16 @@ func (r GatewayResource) proxy(req *restful.Request, resp *restful.Response, end
 		writeOpenAIError(resp, http.StatusBadRequest, "unsupported_parameter", "background responses are not supported")
 		return
 	}
+	if endpoint == "/chat/completions" {
+		body, err = r.Svc.InjectConversationTools(
+			req.Request.Context(), principal,
+			req.HeaderParameter(services.GatewayConversationHeader), body,
+		)
+		if err != nil {
+			writeOpenAIError(resp, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+	}
 	model, routes, err := r.Svc.ResolveModelAndRoutes(req.Request.Context(), principal, input.Model, modality)
 	if err != nil {
 		writeOpenAIError(resp, http.StatusNotFound, "model_not_found", err.Error())

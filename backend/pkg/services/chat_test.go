@@ -76,3 +76,48 @@ func TestChatTitleIsNormalizedAndBounded(t *testing.T) {
 		t.Fatalf("unexpected generated title: %q", title)
 	}
 }
+
+func TestLegacyConversationUsesDefaultToolsUntilUserChangesSelection(t *testing.T) {
+	originalChat := config.ApplicationConfig.Chat
+	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
+		Enabled: true, DefaultEnabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: t.TempDir(),
+	}}
+	config.ApplicationConfig.Chat.Default()
+	t.Cleanup(func() { config.ApplicationConfig.Chat = originalChat })
+
+	db := dashboardTestDatabase(t)
+	account := daos.Account{ID: "legacy-chat-user", Username: "legacy-chat-user", Enable: true}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	legacy := daos.ChatConversation{
+		GatewayRecord: daos.GatewayRecord{ID: "legacy-conversation"},
+		AccountID:     account.ID, Model: "model-a", Skills: "[]", MCPServers: "[]",
+	}
+	if err := db.Create(&legacy).Error; err != nil {
+		t.Fatalf("create legacy conversation: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), config.RequestUserId, account.ID)
+	service := ChatService{}
+	detail, errorData := service.Get(ctx, legacy.ID)
+	if errorData.IsNotNil() || len(detail.MCPServers) != 1 || detail.MCPServers[0] != builtinChatServerName {
+		t.Fatalf("legacy conversation did not receive default tools: detail=%#v error=%v", detail, errorData.Err)
+	}
+
+	updated, errorData := service.Update(ctx, legacy.ID, dtos.ChatConversationUpdate{Model: legacy.Model, MCPServers: []string{}})
+	if errorData.IsNotNil() || len(updated.MCPServers) != 0 {
+		t.Fatalf("explicit tool disable was not preserved: conversation=%#v error=%v", updated, errorData.Err)
+	}
+	var stored daos.ChatConversation
+	if err := db.First(&stored, "id = ?", legacy.ID).Error; err != nil {
+		t.Fatalf("read updated conversation: %v", err)
+	}
+	if !stored.MCPServersInitialized {
+		t.Fatal("tool selection was not marked as initialized")
+	}
+	detail, errorData = service.Get(ctx, legacy.ID)
+	if errorData.IsNotNil() || len(detail.MCPServers) != 0 {
+		t.Fatalf("default tools were reapplied after explicit disable: detail=%#v error=%v", detail, errorData.Err)
+	}
+}

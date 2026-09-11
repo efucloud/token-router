@@ -9,6 +9,9 @@ type ChatConversation struct {
 	Model      string `gorm:"column:model;type:varchar(255);not null" json:"model"`
 	Skills     string `gorm:"column:skills;type:longtext;not null" json:"skills"`
 	MCPServers string `gorm:"column:mcp_servers;type:longtext;not null" json:"mcpServers"`
+	// MCPServersInitialized distinguishes legacy conversations that predate
+	// default-enabled tools from a user explicitly selecting no tools.
+	MCPServersInitialized bool `gorm:"column:mcp_servers_initialized;default:false;not null" json:"-"`
 }
 
 func (*ChatConversation) TableName() string { return models.ChatConversationTableName }

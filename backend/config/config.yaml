@@ -44,6 +44,19 @@ chat:
     maxRetries: 3
     retryBaseMillis: 800
     retryMaxMillis: 8000
+    # 进程内置文件与命令工具。command 拥有服务进程在容器内的权限；生产环境必须结合
+    # 非 root、只读根文件系统、专用工作目录和最小化 ServiceAccount/RBAC 使用。
+    builtinTools:
+        enabled: true
+        defaultEnabled: true
+        # allowedRoles 仅控制 command；个人文件工具对所有已登录用户开放。
+        allowedRoles: [admin]
+        # 留空或删除时，默认在进程运行目录创建 workspace；容器镜像通过环境变量覆盖。
+        workspaceDirectory: workspace
+        commandEnabled: true
+        commandTimeoutSeconds: 120
+        maxOutputBytes: 1048576
+        maxUploadBytes: 33554432
     # 仅扫描服务端明确允许的目录；目录中的 SKILL.md 会发布到对话窗口。
     # 容器镜像默认通过环境变量覆盖为 ["/efucloud/skills"]。
     skillDirectories: []

@@ -151,9 +151,14 @@ The following environment variables override the corresponding sensitive configu
 - `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
 - `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
 - `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
+- `TOKEN_ROUTER_CHAT_BUILTIN_TOOLS_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_DEFAULT_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_COMMAND_ENABLED`
+- `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`
+- `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES`
 
-The container image supports Skills, Streamable HTTP MCP, and Node/Python stdio MCP while running
-as a non-root user. See [Skills and MCP in containers](docs/deployment/container-capabilities.md) for
+The container image supports per-user personal workspaces, built-in file/command tools, Skills,
+Streamable HTTP MCP, and Node/Python stdio MCP while running as a non-root user. See [Skills and MCP in containers](docs/deployment/container-capabilities.md) for
 mount paths, Secret handling, and Docker Compose/Kubernetes examples.
 
 Register this browser callback URL with the OIDC provider:
@@ -172,6 +177,9 @@ go run ./cmd/start.go -c ./config/config.yaml
 ```
 
 The API server listens on `http://localhost:9006`.
+The local configuration stores personal workspaces in `workspace` under the process working directory.
+Container deployments continue to use `/efucloud/workspaces` or the directory
+set by `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`.
 
 To run migrations without starting the server:
 

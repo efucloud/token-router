@@ -81,6 +81,9 @@ func TestChatConfigDefaults(t *testing.T) {
 	if chat.MaxRetries != 3 || chat.RetryBaseMillis != 800 || chat.RetryMaxMillis != 8000 {
 		t.Fatalf("unexpected retry defaults: %#v", chat)
 	}
+	if chat.BuiltinTools.WorkspaceDirectory != "workspace" || len(chat.BuiltinTools.AllowedRoles) != 1 || chat.BuiltinTools.AllowedRoles[0] != "admin" || chat.BuiltinTools.CommandTimeoutSeconds != 120 || chat.BuiltinTools.MaxOutputBytes != 1<<20 || chat.BuiltinTools.MaxUploadBytes != 32<<20 {
+		t.Fatalf("unexpected builtin tool defaults: %#v", chat.BuiltinTools)
+	}
 }
 
 func TestChatConfigEnvironmentOverrides(t *testing.T) {
@@ -100,6 +103,11 @@ func TestChatConfigEnvironmentOverrides(t *testing.T) {
 	}
 	t.Setenv(chatSkillDirectoriesEnv, strings.Join([]string{firstSkillDirectory, secondSkillDirectory}, string(os.PathListSeparator)))
 	t.Setenv(chatMCPConfigFileEnv, mcpConfigPath)
+	t.Setenv(chatBuiltinToolsEnabledEnv, "true")
+	t.Setenv(chatBuiltinDefaultEnabledEnv, "true")
+	t.Setenv(chatBuiltinCommandEnabledEnv, "true")
+	t.Setenv(chatBuiltinWorkspaceEnv, "/tmp/token-router-workspace")
+	t.Setenv(chatWorkspaceMaxUploadEnv, "2048")
 
 	chat := ChatConfig{
 		SkillDirectories: []string{"from-main-config"},
@@ -113,6 +121,9 @@ func TestChatConfigEnvironmentOverrides(t *testing.T) {
 	}
 	if len(chat.MCPServers) != 1 || chat.MCPServers[0].Name != "workspace" || chat.MCPServers[0].Command != "/usr/bin/node" {
 		t.Fatalf("unexpected MCP servers: %#v", chat.MCPServers)
+	}
+	if !chat.BuiltinTools.Enabled || !chat.BuiltinTools.DefaultEnabled || !chat.BuiltinTools.CommandEnabled || chat.BuiltinTools.WorkspaceDirectory != "/tmp/token-router-workspace" || chat.BuiltinTools.MaxUploadBytes != 2048 {
+		t.Fatalf("unexpected builtin tools: %#v", chat.BuiltinTools)
 	}
 }
 

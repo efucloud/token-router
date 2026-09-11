@@ -34,7 +34,9 @@ export type ChatMCPToolCapability = {
 
 export type ChatMCPServerCapability = {
   name: string;
+  kind: 'builtin' | 'mcp';
   status: 'connected' | 'failed';
+  defaultEnabled: boolean;
   error?: string;
   tools: ChatMCPToolCapability[];
 };
@@ -44,6 +46,20 @@ export type ChatCapabilities = {
   skills: ChatSkillCapability[];
   mcpServers: ChatMCPServerCapability[];
   issues: string[];
+};
+
+export type ChatWorkspaceEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory' | 'symlink';
+  size: number;
+  updatedAt: string;
+};
+
+export type ChatWorkspaceListing = {
+  path: string;
+  entries: ChatWorkspaceEntry[];
+  maxUploadBytes: number;
 };
 
 export type StoredConversationMessage = {
@@ -75,8 +91,10 @@ const conversationRequest = async <T>(
   const response = await fetch(path, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${token.access_token}`,
+      ...(init?.body instanceof FormData
+        ? {}
+        : { 'Content-Type': 'application/json' }),
       ...init?.headers,
     },
   });
@@ -140,8 +158,20 @@ export const appendConversationMessage = (
 export const deleteConversation = (id: string) =>
   conversationRequest<string>(`${base}/${id}`, { method: 'DELETE' });
 
-export const getChatCapabilities = () =>
-  conversationRequest<ChatCapabilities>('/api/v1/chat/capabilities');
+export const getChatCapabilities = async () => {
+  const result = await conversationRequest<ChatCapabilities>(
+    '/api/v1/chat/capabilities',
+  );
+  return {
+    ...result,
+    mcpServers: (result.mcpServers || []).map((server) => ({
+      ...server,
+      kind: server.kind || 'mcp',
+      defaultEnabled: server.defaultEnabled || false,
+      tools: server.tools || [],
+    })),
+  };
+};
 
 export const callChatMCPTool = (
   server: string,
@@ -155,3 +185,38 @@ export const callChatMCPTool = (
       body: JSON.stringify({ arguments: args }),
     },
   );
+
+const workspaceBase = '/api/v1/chat/workspace';
+
+export const listChatWorkspace = (path = '') =>
+  conversationRequest<ChatWorkspaceListing>(
+    `${workspaceBase}?path=${encodeURIComponent(path)}`,
+  );
+
+export const uploadChatWorkspaceFile = (path: string, file: File) => {
+  const body = new FormData();
+  body.append('file', file);
+  return conversationRequest<ChatWorkspaceEntry>(
+    `${workspaceBase}/upload?path=${encodeURIComponent(path)}`,
+    { method: 'POST', body },
+  );
+};
+
+export const downloadChatWorkspaceFile = async (path: string) => {
+  const token = getToken();
+  if (!token) throw new Error('登录状态已失效，请重新登录');
+  const response = await fetch(
+    `${workspaceBase}/download?path=${encodeURIComponent(path)}`,
+    { headers: { Authorization: `Bearer ${token.access_token}` } },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as ControlPlaneError;
+    throw new Error(
+      body.alert ||
+        body.detail ||
+        body.message ||
+        `请求失败（HTTP ${response.status}）`,
+    );
+  }
+  return response.blob();
+};

@@ -1,7 +1,7 @@
 # 容器内 Skills 与 MCP
 
-官方后端镜像直接支持只读 Skills、Streamable HTTP MCP 和 Node/Python stdio MCP。服务监听
-`9006`，以 UID/GID `10001` 运行，不需要也不应给容器提权。
+官方后端镜像直接支持进程内置工具、只读 Skills、Streamable HTTP MCP 和 Node/Python stdio
+MCP。服务监听 `9006`，以 UID/GID `10001` 运行，不需要也不应给容器提权。
 
 ## 挂载契约
 
@@ -11,11 +11,33 @@
 | `/efucloud/config/mcp.yaml` | 独立 MCP 配置 | Secret，只读 |
 | `/efucloud/skills` | `<skill>/SKILL.md` Skill 树 | ConfigMap、镜像或只读卷 |
 | `/efucloud/mcp` | stdio MCP 程序及已安装依赖 | 镜像或只读卷 |
+| `/efucloud/workspaces` | 所有登录用户个人工作区的共同根目录 | PVC（推荐）或受控目录挂载 |
 | `/efucloud/.cache`、`/efucloud/.home` | 非 root Node/Python 运行时缓存 | `emptyDir` 或普通卷 |
 
 镜像默认设置 `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES=/efucloud/skills`。需要扫描多个目录时，
 使用 Linux 路径列表格式，例如 `/company/skills:/team/skills`。该变量一旦设置，会覆盖主配置
 中的 `chat.skillDirectories`。
+
+## 进程内置工具
+
+开启 `chat.builtinTools.enabled` 后，后端进程直接发布 `read_file`、`list_files`、
+`search_files`、`write_file`、`edit_file`、`apply_patch` 和 `discover_commands`。开启
+`chat.builtinTools.commandEnabled` 后还会发布 `command`。这些工具无需部署独立 MCP Server；
+在能力接口和会话中以 `builtin` 工具提供者出现。
+个人文件工具对所有已认证账号发布，服务端在 `workspaceDirectory` 下使用账号 ID 的稳定哈希
+子目录强制隔离。`chat.builtinTools.allowedRoles` 仅控制 `command`，其中 `"*"` 表示所有
+已认证用户。
+
+服务启动时扫描自身 `PATH` 中的可执行程序。`command` 的模型说明会列出检测到的常用工具，
+模型也可调用 `discover_commands` 按名称查询。因此派生镜像只要安装 `kubectl`、`helm`、
+`git` 等 CLI，模型就能发现并通过 `command` 使用它们，无需给 Token Router 增加对应业务
+工具代码。容器镜像默认将用户工作区根目录覆盖为 `/efucloud/workspaces`。
+单文件上传默认限制为 32 MiB，可用 `TOKEN_ROUTER_CHAT_WORKSPACE_MAX_UPLOAD_BYTES` 覆盖。
+
+`command` 不是安全沙箱，它拥有 Token Router 进程的文件、网络和 Kubernetes ServiceAccount
+权限。生产环境必须使用非 root 用户、只读根文件系统、专用可写工作卷、最小化 RBAC，并仅在
+可信用户可访问的部署中启用。工具自身提供工作目录边界、超时和输出大小限制，但 Shell 命令
+仍可能通过绝对路径或网络访问工作目录之外的资源。
 
 设置 `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE=/efucloud/config/mcp.yaml` 后，独立文件中的
 `mcpServers` 会覆盖主配置的同名列表。文件采用以下结构：

@@ -14,8 +14,7 @@ log
 autotest
 kubeconfig
 dist/
-/generate
-/generates
+workspace/
 *.ts
 /docs/harbor/harbor.v2.13.0.tar.gz
 /docs/harbor/prepare

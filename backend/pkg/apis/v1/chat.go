@@ -1,7 +1,10 @@
 package v1
 
 import (
+	"errors"
+	"mime"
 	"net/http"
+	"path/filepath"
 
 	"github.com/efucloud/common"
 	"github.com/efucloud/token-router/pkg/apis/filters"
@@ -22,6 +25,7 @@ func (r ChatResource) AddWebService(ws *restful.WebService) {
 	base := config.APIPrefix + "/chat/conversations"
 	capabilities := config.APIPrefix + "/chat/capabilities"
 	mcpTools := config.APIPrefix + "/chat/mcp/{server}/tools/{tool}/call"
+	workspace := config.APIPrefix + "/chat/workspace"
 	filtersForRoute := func(route *restful.RouteBuilder) *restful.RouteBuilder {
 		return route.Filter(filters.I18n).Filter(filters.Log).Filter(filters.Auth).
 			Metadata(restfulspec.KeyOpenAPITags, apiInfo.Tags())
@@ -36,6 +40,17 @@ func (r ChatResource) AddWebService(ws *restful.WebService) {
 		Param(ws.PathParameter("server", "MCP服务名称")).Param(ws.PathParameter("tool", "工具名称")).
 		Reads(dtos.ChatMCPToolCall{}).Returns(http.StatusOK, "成功", dtos.ChatMCPToolResult{})).
 		Metadata(config.FrontApiTag, "callChatMCPTool"))
+	ws.Route(filtersForRoute(ws.GET(workspace).Doc("浏览当前用户个人工作区").To(r.listWorkspace).
+		Param(ws.QueryParameter("path", "用户工作区内的相对目录")).
+		Returns(http.StatusOK, "成功", dtos.ChatWorkspaceListing{})).
+		Metadata(config.FrontApiTag, "listChatWorkspace"))
+	ws.Route(filtersForRoute(ws.POST(workspace+"/upload").Doc("上传文件到当前用户个人工作区").To(r.uploadWorkspace).
+		Consumes("multipart/form-data").Param(ws.QueryParameter("path", "用户工作区内的相对目录")).
+		Returns(http.StatusOK, "成功", dtos.ChatWorkspaceEntry{})).
+		Metadata(config.FrontApiTag, "uploadChatWorkspaceFile"))
+	ws.Route(filtersForRoute(ws.GET(workspace+"/download").Doc("下载当前用户个人工作区文件").To(r.downloadWorkspace).
+		Produces("application/octet-stream").Param(ws.QueryParameter("path", "用户工作区内的相对文件路径"))).
+		Metadata(config.FrontApiTag, "downloadChatWorkspaceFile"))
 	ws.Route(filtersForRoute(ws.POST(base).Doc("新建对话").To(r.create).
 		Reads(dtos.ChatConversationCreate{}).Returns(http.StatusOK, "成功", dtos.ChatConversationSummary{})).
 		Metadata(config.FrontApiTag, "createChatConversation"))
@@ -53,6 +68,64 @@ func (r ChatResource) AddWebService(ws *restful.WebService) {
 	ws.Route(filtersForRoute(ws.DELETE(base+"/{id}").Doc("删除对话").To(r.delete).
 		Param(ws.PathParameter("id", "会话ID")).Returns(http.StatusOK, "成功", "success")).
 		Metadata(config.FrontApiTag, "deleteChatConversation"))
+}
+
+func workspaceServiceError(err error) common.ErrorData {
+	return chatServiceError(err, services.WorkspaceHTTPStatus(err))
+}
+
+func (r ChatResource) listWorkspace(req *restful.Request, resp *restful.Response) {
+	ctx := dashboardContext(req)
+	result, err := r.Svc.ListWorkspace(ctx, req.QueryParameter("path"))
+	if err != nil {
+		common.ResponseErrorMessage(ctx, req, resp, config.Bundle, workspaceServiceError(err))
+		return
+	}
+	common.ResponseSuccess(resp, result)
+}
+
+func (r ChatResource) uploadWorkspace(req *restful.Request, resp *restful.Response) {
+	ctx := dashboardContext(req)
+	maxBytes := config.ApplicationConfig.Chat.BuiltinTools.MaxUploadBytes
+	req.Request.Body = http.MaxBytesReader(resp.ResponseWriter, req.Request.Body, maxBytes+(1<<20))
+	file, header, err := req.Request.FormFile("file")
+	if err != nil {
+		status := http.StatusBadRequest
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		common.ResponseErrorMessage(ctx, req, resp, config.Bundle, chatServiceError(errors.New("invalid upload request"), status))
+		return
+	}
+	defer file.Close()
+	if req.Request.MultipartForm != nil {
+		defer req.Request.MultipartForm.RemoveAll()
+	}
+	result, err := r.Svc.UploadWorkspaceFile(ctx, req.QueryParameter("path"), header.Filename, file)
+	if err != nil {
+		common.ResponseErrorMessage(ctx, req, resp, config.Bundle, workspaceServiceError(err))
+		return
+	}
+	common.ResponseSuccess(resp, result)
+}
+
+func (r ChatResource) downloadWorkspace(req *restful.Request, resp *restful.Response) {
+	ctx := dashboardContext(req)
+	file, entry, err := r.Svc.OpenWorkspaceFile(ctx, req.QueryParameter("path"))
+	if err != nil {
+		common.ResponseErrorMessage(ctx, req, resp, config.Bundle, workspaceServiceError(err))
+		return
+	}
+	defer file.Close()
+	contentType := mime.TypeByExtension(filepath.Ext(entry.Name))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	resp.Header().Set("Content-Type", contentType)
+	resp.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": entry.Name}))
+	resp.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(resp.ResponseWriter, req.Request, entry.Name, entry.UpdatedAt, file)
 }
 
 func (r ChatResource) capabilities(req *restful.Request, resp *restful.Response) {

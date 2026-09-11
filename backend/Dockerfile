@@ -53,7 +53,7 @@ WORKDIR /efucloud
 RUN apk add --no-cache ca-certificates nodejs npm python3 py3-pip && \
     addgroup -S -g 10001 token-router && \
     adduser -S -D -u 10001 -G token-router -h /efucloud/.home token-router && \
-    mkdir -p /efucloud/config /efucloud/skills /efucloud/mcp /efucloud/log \
+    mkdir -p /efucloud/config /efucloud/skills /efucloud/mcp /efucloud/workspaces /efucloud/log \
       /efucloud/.home /efucloud/.cache && \
     chown -R token-router:token-router /efucloud
 
@@ -63,7 +63,8 @@ COPY --from=builder /workspace/output/token-router-$TARGETOS-$TARGETARCH /usr/lo
 ENV HOME=/efucloud/.home \
     XDG_CACHE_HOME=/efucloud/.cache \
     PYTHONUNBUFFERED=1 \
-    TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES=/efucloud/skills
+    TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES=/efucloud/skills \
+    TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE=/efucloud/workspaces
 
 USER 10001:10001
 

@@ -91,6 +91,8 @@ spec:
               mountPath: /efucloud/.cache
             - name: home
               mountPath: /efucloud/.home
+            - name: workspace
+              mountPath: /efucloud/workspaces
             - name: log
               mountPath: /efucloud/log
       volumes:
@@ -112,5 +114,9 @@ spec:
           emptyDir: {}
         - name: home
           emptyDir: {}
+        # 个人工作区必须使用持久卷，确保 Pod 重建后用户文件仍存在。
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: token-router-workspaces
         - name: log
           emptyDir: {}
