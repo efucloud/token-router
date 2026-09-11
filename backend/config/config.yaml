@@ -37,5 +37,24 @@ gateway:
     maxRequestBodyBytes: 16777216
     maxResponseBodyBytes: 33554432
     maxReservedTokens: 131072
+chat:
+    contextWindowTokens: 32768
+    compactThreshold: 0.75
+    compactKeepRecent: 8
+    maxRetries: 3
+    retryBaseMillis: 800
+    retryMaxMillis: 8000
+    # 仅扫描服务端明确允许的目录；目录中的 SKILL.md 会发布到对话窗口。
+    # 例如: ["/opt/token-router/skills"]
+    skillDirectories: []
+    # MCP 凭据、请求头和命令仅保留在服务端配置中，不会返回浏览器。
+    # streamable-http 示例:
+    # - name: workspace
+    #   type: streamable-http
+    #   enabled: true
+    #   url: http://mcp-server:3000/mcp
+    #   headers: {Authorization: "Bearer replace-me"}
+    # stdio 还可配置 command、args、workingDir 与 environment。
+    mcpServers: []
 adminEmails:
   - admin@efucloud.com

@@ -112,6 +112,7 @@ func (c *Config) Init() {
 		c.Gateway.SecretKey = value
 	}
 	c.Gateway.Default()
+	c.Chat.Default()
 	if c.LogConfig == nil {
 		c.LogConfig = new(LogConfig)
 		c.LogConfig.Filename = "./log/token-router.log"

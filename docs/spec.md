@@ -29,6 +29,7 @@ Token 双层用量限额、路由容错与审计能力。
 | [交付计划](specs/08-delivery-plan.md) | MVP 阶段、验收标准与后续范围 |
 | [双维度 Dashboard](specs/09-dashboard.md) | 用户工作台、管理员运行看板与指标契约 |
 | [企业能力路线](specs/10-enterprise-capabilities.md) | 参考 new-api/TokenHub 的能力取舍、成熟度和实施优先级 |
+| [多轮对话与能力编排](specs/11-conversation-agent.md) | 自动压缩、轮次重试、Skills、MCP 与对话窗口交互 |
 
 子规格是具体实现与验收依据；本文件只维护稳定的全局定位、原则与导航。
 

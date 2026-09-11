@@ -4,8 +4,46 @@ export type ConversationSummary = {
   id: string;
   title: string;
   model: string;
+  skills: string[];
+  mcpServers: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type ChatRuntimePolicy = {
+  contextWindowTokens: number;
+  compactThreshold: number;
+  compactKeepRecent: number;
+  maxRetries: number;
+  retryBaseMillis: number;
+  retryMaxMillis: number;
+  maxToolRounds: number;
+};
+
+export type ChatSkillCapability = {
+  name: string;
+  description: string;
+  content: string;
+};
+
+export type ChatMCPToolCapability = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+};
+
+export type ChatMCPServerCapability = {
+  name: string;
+  status: 'connected' | 'failed';
+  error?: string;
+  tools: ChatMCPToolCapability[];
+};
+
+export type ChatCapabilities = {
+  policy: ChatRuntimePolicy;
+  skills: ChatSkillCapability[];
+  mcpServers: ChatMCPServerCapability[];
+  issues: string[];
 };
 
 export type StoredConversationMessage = {
@@ -43,9 +81,7 @@ const conversationRequest = async <T>(
     },
   });
   if (!response.ok) {
-    const body = (await response
-      .json()
-      .catch(() => ({}))) as ControlPlaneError;
+    const body = (await response.json().catch(() => ({}))) as ControlPlaneError;
     throw new Error(
       body.alert ||
         body.detail ||
@@ -61,10 +97,14 @@ const base = '/api/v1/chat/conversations';
 export const listConversations = () =>
   conversationRequest<ConversationSummary[]>(base);
 
-export const createConversation = (model: string) =>
+export const createConversation = (
+  model: string,
+  skills: string[] = [],
+  mcpServers: string[] = [],
+) =>
   conversationRequest<ConversationSummary>(base, {
     method: 'POST',
-    body: JSON.stringify({ model }),
+    body: JSON.stringify({ model, skills, mcpServers }),
   });
 
 export const getConversation = (id: string) =>
@@ -72,7 +112,12 @@ export const getConversation = (id: string) =>
 
 export const updateConversation = (
   id: string,
-  input: { model: string; title?: string },
+  input: {
+    model: string;
+    title?: string;
+    skills: string[];
+    mcpServers: string[];
+  },
 ) =>
   conversationRequest<ConversationSummary>(`${base}/${id}`, {
     method: 'PUT',
@@ -94,3 +139,19 @@ export const appendConversationMessage = (
 
 export const deleteConversation = (id: string) =>
   conversationRequest<string>(`${base}/${id}`, { method: 'DELETE' });
+
+export const getChatCapabilities = () =>
+  conversationRequest<ChatCapabilities>('/api/v1/chat/capabilities');
+
+export const callChatMCPTool = (
+  server: string,
+  tool: string,
+  args: Record<string, unknown>,
+) =>
+  conversationRequest<{ content: string; isError: boolean }>(
+    `/api/v1/chat/mcp/${encodeURIComponent(server)}/tools/${encodeURIComponent(tool)}/call`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ arguments: args }),
+    },
+  );

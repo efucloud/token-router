@@ -68,3 +68,14 @@ func TestConfigSerialization(t *testing.T) {
 		t.Fatalf("unexpected round trip result: %#v", decoded)
 	}
 }
+
+func TestChatConfigDefaults(t *testing.T) {
+	var chat ChatConfig
+	chat.Default()
+	if chat.ContextWindowTokens != 32768 || chat.CompactThreshold != 0.75 || chat.CompactKeepRecent != 8 {
+		t.Fatalf("unexpected compaction defaults: %#v", chat)
+	}
+	if chat.MaxRetries != 3 || chat.RetryBaseMillis != 800 || chat.RetryMaxMillis != 8000 {
+		t.Fatalf("unexpected retry defaults: %#v", chat)
+	}
+}

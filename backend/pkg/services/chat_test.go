@@ -10,6 +10,9 @@ import (
 )
 
 func TestChatConversationLifecycleAndAccountIsolation(t *testing.T) {
+	originalChat := config.ApplicationConfig.Chat
+	config.ApplicationConfig.Chat.MCPServers = []config.ChatMCPConfig{{Name: "workspace", Enabled: true}}
+	t.Cleanup(func() { config.ApplicationConfig.Chat = originalChat })
 	db := dashboardTestDatabase(t)
 	accounts := []daos.Account{
 		{ID: "chat-user-1", Username: "chat-user-1", Enable: true},
@@ -22,11 +25,11 @@ func TestChatConversationLifecycleAndAccountIsolation(t *testing.T) {
 	user1 := context.WithValue(context.Background(), config.RequestUserId, accounts[0].ID)
 	user2 := context.WithValue(context.Background(), config.RequestUserId, accounts[1].ID)
 
-	conversation, errorData := service.Create(user1, dtos.ChatConversationCreate{Model: "model-a"})
+	conversation, errorData := service.Create(user1, dtos.ChatConversationCreate{Model: "model-a", MCPServers: []string{"workspace"}})
 	if errorData.IsNotNil() {
 		t.Fatalf("create conversation: %v", errorData.Err)
 	}
-	if conversation.Title != "" || conversation.Model != "model-a" {
+	if conversation.Title != "" || conversation.Model != "model-a" || len(conversation.MCPServers) != 1 || conversation.MCPServers[0] != "workspace" {
 		t.Fatalf("unexpected new conversation: %#v", conversation)
 	}
 	userMessage, errorData := service.AppendMessage(user1, conversation.ID, dtos.ChatMessageCreate{
@@ -45,7 +48,7 @@ func TestChatConversationLifecycleAndAccountIsolation(t *testing.T) {
 	if errorData.IsNotNil() {
 		t.Fatalf("get conversation: %v", errorData.Err)
 	}
-	if detail.Title == "" || len(detail.Messages) != 2 || detail.Messages[1].TotalTokens != 12 {
+	if detail.Title == "" || len(detail.Messages) != 2 || detail.Messages[1].TotalTokens != 12 || len(detail.MCPServers) != 1 {
 		t.Fatalf("conversation was not persisted: %#v", detail)
 	}
 	if _, errorData = service.Get(user2, conversation.ID); !errorData.IsNotNil() || errorData.ResponseCode != 404 {

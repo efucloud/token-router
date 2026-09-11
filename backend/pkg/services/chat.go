@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -34,8 +36,48 @@ func chatAccountID(ctx context.Context) (string, error) {
 func chatConversationSummary(model daos.ChatConversation) dtos.ChatConversationSummary {
 	return dtos.ChatConversationSummary{
 		ID: model.ID, Title: model.Title, Model: model.Model,
+		Skills: chatSelection(model.Skills), MCPServers: chatSelection(model.MCPServers),
 		CreatedAt: model.CreatedAt, UpdatedAt: model.UpdatedAt,
 	}
+}
+
+func chatSelection(value string) []string {
+	result := make([]string, 0)
+	if json.Unmarshal([]byte(value), &result) != nil {
+		return []string{}
+	}
+	return result
+}
+
+func encodeChatSelection(value []string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
+}
+
+func normalizeChatSelections(skills, mcpServers []string) ([]string, []string, error) {
+	availableSkills, availableMCP := chatCapabilityNames()
+	normalize := func(kind string, values []string, available map[string]struct{}) ([]string, error) {
+		result := make([]string, 0, len(values))
+		seen := make(map[string]struct{}, len(values))
+		for _, value := range values {
+			name := strings.TrimSpace(value)
+			if _, exists := seen[name]; exists {
+				return nil, fmt.Errorf("duplicate %s %q", kind, name)
+			}
+			if _, exists := available[name]; !exists {
+				return nil, fmt.Errorf("unknown %s %q", kind, name)
+			}
+			seen[name] = struct{}{}
+			result = append(result, name)
+		}
+		return result, nil
+	}
+	normalizedSkills, err := normalize("skill", skills, availableSkills)
+	if err != nil {
+		return nil, nil, err
+	}
+	normalizedMCP, err := normalize("MCP server", mcpServers, availableMCP)
+	return normalizedSkills, normalizedMCP, err
 }
 
 func chatMessageDetail(model daos.ChatMessage) dtos.ChatMessageDetail {
@@ -78,12 +120,17 @@ func (ChatService) Create(ctx context.Context, input dtos.ChatConversationCreate
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusUnauthorized)
 	}
 	input.Model = strings.TrimSpace(input.Model)
+	input.Skills, input.MCPServers, err = normalizeChatSelections(input.Skills, input.MCPServers)
+	if err != nil {
+		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
+	}
 	if err = validator.New().Struct(input); err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
 	}
 	conversation := daos.ChatConversation{
 		GatewayRecord: daos.GatewayRecord{ID: utils.GenerateDatabaseId()},
-		AccountID:     accountID, Model: input.Model,
+		AccountID:     accountID, Model: input.Model, Skills: encodeChatSelection(input.Skills),
+		MCPServers: encodeChatSelection(input.MCPServers),
 	}
 	if err = config.DBConnect.WithContext(ctx).Create(&conversation).Error; err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusInternalServerError)
@@ -122,10 +169,17 @@ func (ChatService) Update(ctx context.Context, id string, input dtos.ChatConvers
 	}
 	input.Title = strings.TrimSpace(input.Title)
 	input.Model = strings.TrimSpace(input.Model)
+	input.Skills, input.MCPServers, err = normalizeChatSelections(input.Skills, input.MCPServers)
+	if err != nil {
+		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
+	}
 	if err = validator.New().Struct(input); err != nil {
 		return dtos.ChatConversationSummary{}, chatError(err, http.StatusBadRequest)
 	}
-	updates := map[string]any{"model": input.Model, "updated_at": time.Now()}
+	updates := map[string]any{
+		"model": input.Model, "skills": encodeChatSelection(input.Skills),
+		"mcp_servers": encodeChatSelection(input.MCPServers), "updated_at": time.Now(),
+	}
 	if input.Title != "" {
 		updates["title"] = input.Title
 	}

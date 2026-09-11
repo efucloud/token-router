@@ -9,7 +9,53 @@ type Config struct {
 	LogConfig   *LogConfig    `json:"logConfig" yaml:"logConfig"`
 	OidcConfig  OidcConfig    `json:"oidcConfig" yaml:"oidcConfig" description:"认证配置"`
 	Gateway     GatewayConfig `json:"gateway" yaml:"gateway" description:"AI网关配置"`
+	Chat        ChatConfig    `json:"chat" yaml:"chat" description:"对话编排配置"`
 	AdminEmails []string      `json:"adminEmails" yaml:"adminEmails" description:"管理员邮箱列表"`
+}
+
+type ChatConfig struct {
+	ContextWindowTokens int             `json:"contextWindowTokens" yaml:"contextWindowTokens" description:"默认上下文窗口Token数"`
+	CompactThreshold    float64         `json:"compactThreshold" yaml:"compactThreshold" description:"自动压缩触发比例"`
+	CompactKeepRecent   int             `json:"compactKeepRecent" yaml:"compactKeepRecent" description:"压缩时保留的最近消息数"`
+	MaxRetries          int             `json:"maxRetries" yaml:"maxRetries" description:"单次模型请求最大尝试次数"`
+	RetryBaseMillis     int             `json:"retryBaseMillis" yaml:"retryBaseMillis" description:"重试基础等待毫秒数"`
+	RetryMaxMillis      int             `json:"retryMaxMillis" yaml:"retryMaxMillis" description:"重试最大等待毫秒数"`
+	SkillDirectories    []string        `json:"skillDirectories" yaml:"skillDirectories" description:"Skill白名单目录"`
+	MCPServers          []ChatMCPConfig `json:"mcpServers" yaml:"mcpServers" description:"MCP服务端配置"`
+}
+
+type ChatMCPConfig struct {
+	Name           string            `json:"name" yaml:"name" description:"服务名称"`
+	Type           string            `json:"type" yaml:"type" description:"streamable-http或stdio"`
+	Enabled        bool              `json:"enabled" yaml:"enabled" description:"是否发布"`
+	URL            string            `json:"url" yaml:"url" description:"Streamable HTTP地址"`
+	Headers        map[string]string `json:"headers" yaml:"headers" description:"远程请求头"`
+	Command        string            `json:"command" yaml:"command" description:"stdio命令"`
+	Args           []string          `json:"args" yaml:"args" description:"stdio参数"`
+	WorkingDir     string            `json:"workingDir" yaml:"workingDir" description:"stdio工作目录"`
+	Environment    map[string]string `json:"environment" yaml:"environment" description:"stdio环境变量"`
+	TimeoutSeconds int               `json:"timeoutSeconds" yaml:"timeoutSeconds" description:"连接和调用超时秒数"`
+}
+
+func (c *ChatConfig) Default() {
+	if c.ContextWindowTokens <= 0 {
+		c.ContextWindowTokens = 32768
+	}
+	if c.CompactThreshold <= 0 || c.CompactThreshold >= 1 {
+		c.CompactThreshold = 0.75
+	}
+	if c.CompactKeepRecent <= 0 {
+		c.CompactKeepRecent = 8
+	}
+	if c.MaxRetries <= 0 {
+		c.MaxRetries = 3
+	}
+	if c.RetryBaseMillis <= 0 {
+		c.RetryBaseMillis = 800
+	}
+	if c.RetryMaxMillis <= 0 {
+		c.RetryMaxMillis = 8000
+	}
 }
 
 type GatewayConfig struct {

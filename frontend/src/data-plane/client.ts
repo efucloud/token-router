@@ -11,9 +11,68 @@ export type ChatMessage = {
   content: string;
 };
 
+export type ChatToolCall = {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+export type ChatRequestMessage =
+  | ChatMessage
+  | {
+      role: 'assistant';
+      content: string | null;
+      tool_calls: ChatToolCall[];
+    }
+  | {
+      role: 'tool';
+      content: string;
+      tool_call_id: string;
+      name?: string;
+    };
+
+export type ChatToolDefinition = {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
 type GatewayError = {
   error?: { message?: string; code?: string };
 };
+
+const retryableStatuses = new Set([
+  408, 409, 425, 429, 500, 502, 503, 504, 529,
+]);
+
+const retryAfterMillis = (value: string | null) => {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, date - Date.now());
+};
+
+export class GatewayRequestError extends Error {
+  status: number;
+  retryAfter?: number;
+  retryable: boolean;
+
+  constructor(message: string, status: number, retryAfter?: number) {
+    super(message);
+    this.name = 'GatewayRequestError';
+    this.status = status;
+    this.retryAfter = retryAfter;
+    this.retryable = retryableStatuses.has(status);
+  }
+}
 
 const gatewayRequest = async <T>(
   path: string,
@@ -31,24 +90,31 @@ const gatewayRequest = async <T>(
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as GatewayError;
-    throw new Error(
+    throw new GatewayRequestError(
       body.error?.message || `网关请求失败（HTTP ${response.status}）`,
+      response.status,
+      retryAfterMillis(response.headers.get('Retry-After')),
     );
   }
   return response.json() as Promise<T>;
 };
 
 export const listGatewayModels = async () => {
-  const result = await gatewayRequest<{ data: GatewayModel[] }>(
-    '/v1/models',
-  );
+  const result = await gatewayRequest<{ data: GatewayModel[] }>('/v1/models');
   return result.data;
+};
+
+type ChatCompletionOptions = {
+  tools?: ChatToolDefinition[];
+  onContent?: (content: string) => void;
+  onActivity?: () => void;
+  signal?: AbortSignal;
 };
 
 export const createChatCompletion = async (
   model: string,
-  messages: ChatMessage[],
-  onContent?: (content: string) => void,
+  messages: ChatRequestMessage[],
+  options: ChatCompletionOptions = {},
 ) => {
   const token = getToken();
   if (!token) throw new Error('登录状态已失效，请重新登录');
@@ -59,12 +125,22 @@ export const createChatCompletion = async (
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token.access_token}`,
     },
-    body: JSON.stringify({ model, messages, stream: true }),
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      ...(options.tools?.length
+        ? { tools: options.tools, tool_choice: 'auto' }
+        : {}),
+    }),
+    signal: options.signal,
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as GatewayError;
-    throw new Error(
+    throw new GatewayRequestError(
       body.error?.message || `网关请求失败（HTTP ${response.status}）`,
+      response.status,
+      retryAfterMillis(response.headers.get('Retry-After')),
     );
   }
   if (!response.body) throw new Error('浏览器不支持流式响应');
@@ -72,8 +148,14 @@ export const createChatCompletion = async (
   type ChatChunk = {
     error?: { message?: string };
     choices?: Array<{
-      delta?: { content?: string };
-      message?: ChatMessage;
+      delta?: {
+        content?: string;
+        tool_calls?: Array<Partial<ChatToolCall> & { index?: number }>;
+      };
+      message?: {
+        content?: string;
+        tool_calls?: ChatToolCall[];
+      };
     }>;
     usage?: {
       prompt_tokens?: number;
@@ -84,21 +166,47 @@ export const createChatCompletion = async (
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  const toolCalls = new Map<number, ChatToolCall>();
   let pending = '';
   let content = '';
   let totalTokens: number | undefined;
   const consumeLine = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    const chunk = JSON.parse(trimmed) as ChatChunk;
-    if (chunk.error?.message) throw new Error(chunk.error.message);
-    const delta =
-      chunk.choices?.[0]?.delta?.content ||
-      chunk.choices?.[0]?.message?.content ||
-      '';
+    let chunk: ChatChunk;
+    try {
+      chunk = JSON.parse(trimmed) as ChatChunk;
+    } catch {
+      throw new GatewayRequestError('模型流返回了无效数据', 502);
+    }
+    if (chunk.error?.message)
+      throw new GatewayRequestError(chunk.error.message, 502);
+    const choice = chunk.choices?.[0];
+    const delta = choice?.delta?.content || choice?.message?.content || '';
     if (delta) {
+      options.onActivity?.();
       content += delta;
-      onContent?.(content);
+      options.onContent?.(content);
+    }
+    const incomingCalls =
+      choice?.delta?.tool_calls || choice?.message?.tool_calls || [];
+    for (const [position, incoming] of incomingCalls.entries()) {
+      options.onActivity?.();
+      const index = 'index' in incoming ? incoming.index || 0 : position;
+      const current = toolCalls.get(index) || {
+        id: '',
+        type: 'function' as const,
+        function: { name: '', arguments: '' },
+      };
+      toolCalls.set(index, {
+        id: incoming.id || current.id,
+        type: 'function',
+        function: {
+          name: incoming.function?.name || current.function.name,
+          arguments:
+            current.function.arguments + (incoming.function?.arguments || ''),
+        },
+      });
     }
     if (chunk.usage?.total_tokens !== undefined)
       totalTokens = chunk.usage.total_tokens;
@@ -116,5 +224,8 @@ export const createChatCompletion = async (
   return {
     content,
     totalTokens,
+    toolCalls: [...toolCalls.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, call]) => call),
   };
 };
