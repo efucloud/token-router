@@ -5,6 +5,8 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 兑换码体系。
 
 开发与构建统一使用 Go 1.26.4。产品和技术边界见[总体规格](../docs/spec.md)。
+正式构建使用 Go `embed` 将前端静态资源编译进后端二进制。浏览器页面、API 和健康探针
+均由同一进程的 `9006` 端口提供；前端路由由服务端回退到嵌入的 `index.html`。
 
 ## 本地配置
 
@@ -33,6 +35,12 @@ MCP 使用。将主配置、独立 MCP 配置、Skills 和 stdio 程序分别只
 `/efucloud/config/config.yaml`、`/efucloud/config/mcp.yaml`、`/efucloud/skills` 和
 `/efucloud/mcp`。完整契约及 Compose/Kubernetes 示例见
 [容器内 Skills 与 MCP](../docs/deployment/container-capabilities.md)。
+
+一体化镜像必须从仓库根目录构建，使 Docker 可以同时读取 `frontend` 和 `backend`：
+
+```shell
+docker build -f backend/Dockerfile -t token-router:local .
+```
 
 ## 本地上游引导
 

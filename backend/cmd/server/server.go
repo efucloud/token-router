@@ -79,7 +79,7 @@ func run(o *options.ServerRunOptions, stopCh <-chan struct{}) (err error) {
 	// 数据库迁移
 	migrations.DatabaseMigrate()
 	// 注册 API
-	apis.AddResources()
+	apiHandler := apis.AddResources()
 	// OIDC 初始化
 	if config.ApplicationConfig.OidcConfig.Issuer == "" {
 		config.Logger.Warn("OIDC issuer is not configured; control-plane authentication is unavailable")
@@ -96,7 +96,7 @@ func run(o *options.ServerRunOptions, stopCh <-chan struct{}) (err error) {
 	go func() {
 		config.Logger.Infof("ready to start http server on port: %d", config.ServerPort)
 
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", config.ServerPort), nil); err != nil {
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", config.ServerPort), embeds.FrontendHandler(apiHandler)); err != nil {
 			config.Logger.Fatal("http server failed: " + err.Error())
 		}
 	}()

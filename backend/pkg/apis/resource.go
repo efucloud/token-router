@@ -31,7 +31,7 @@ func GetWebServices(container *restful.Container) *restful.WebService {
 
 	return ws
 }
-func AddResources() {
+func AddResources() *restful.Container {
 	restful.DefaultRequestContentType(restful.MIME_JSON)
 	restful.DefaultResponseContentType(restful.MIME_JSON)
 	container := restful.DefaultContainer
@@ -47,5 +47,5 @@ func AddResources() {
 	container.Filter(cors.Filter)
 	ws := GetWebServices(container)
 	container.Add(ws)
-
+	return container
 }

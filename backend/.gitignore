@@ -15,6 +15,8 @@ autotest
 kubeconfig
 dist/
 workspace/
+pkg/embeds/frontend/*
+!pkg/embeds/frontend/.gitkeep
 *.ts
 /docs/harbor/harbor.v2.13.0.tar.gz
 /docs/harbor/prepare

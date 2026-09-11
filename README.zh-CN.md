@@ -179,6 +179,8 @@ go run ./cmd/start.go -c ./config/config.yaml
 API 服务监听 `http://localhost:9006`。
 本地配置默认把个人工作区写入进程运行目录下的 `workspace`；容器部署仍使用
 `/efucloud/workspaces` 或 `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE` 指定的挂载目录。
+生产构建通过 Go `embed` 将 `frontend/dist` 编译进后端二进制，因此同一个 `9006` 端口
+同时提供控制台和 API，不需要额外部署 Nginx 或前端容器。
 
 仅执行迁移而不启动服务：
 
@@ -201,7 +203,19 @@ npm run dev
 API_PROXY_TARGET=http://localhost:9006 npm run dev
 ```
 
-### 4. 可选：引导上游资源
+### 4. 构建一体化镜像
+
+从仓库根目录执行：
+
+```shell
+docker build -f backend/Dockerfile -t token-router:local .
+```
+
+镜像会先构建前端，再将静态资源嵌入 Go 二进制。GitHub Actions 在 `main` 分支和 `v*`
+标签推送时构建 `linux/amd64`、`linux/arm64` 镜像，并发布到
+`ghcr.io/efucloud/token-router`；Pull Request 只验证构建，不推送镜像。
+
+### 5. 可选：引导上游资源
 
 引导命令会创建本地管理员、供应商、渠道、统一模型、路由和一次性测试 Token。上游密钥从环境变量读取，不会写入配置文件。
 

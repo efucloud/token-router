@@ -1,3 +1,13 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-alpine AS frontend-builder
+
+WORKDIR /workspace/frontend
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY frontend/ ./
+RUN npm run build
+
 # 构建阶段
 FROM golang:1.26.4-alpine3.23 AS builder
 
@@ -9,11 +19,16 @@ ARG TARGETARCH
 ARG GIT_COMMIT
 ARG BUILD_DATE
 
-WORKDIR /workspace
-COPY . .
+WORKDIR /workspace/backend
+COPY backend/go.mod backend/go.sum ./
 
 ENV GOPROXY='https://goproxy.cn,direct'
 ENV GOSUMDB='off'
+
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY backend/ ./
+COPY --from=frontend-builder /workspace/frontend/dist/ ./pkg/embeds/frontend/
 
 # 动态设置 GOOS/GOARCH（注意：Go 不支持所有 TARGETARCH 名称，需映射）
 RUN case "$TARGETARCH" in \
@@ -58,7 +73,7 @@ RUN apk add --no-cache ca-certificates nodejs npm python3 py3-pip && \
     chown -R token-router:token-router /efucloud
 
 # 复制对应平台的二进制
-COPY --from=builder /workspace/output/token-router-$TARGETOS-$TARGETARCH /usr/local/bin/token-router
+COPY --from=builder /workspace/backend/output/token-router-$TARGETOS-$TARGETARCH /usr/local/bin/token-router
 
 ENV HOME=/efucloud/.home \
     XDG_CACHE_HOME=/efucloud/.cache \

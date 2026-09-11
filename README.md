@@ -180,6 +180,9 @@ The API server listens on `http://localhost:9006`.
 The local configuration stores personal workspaces in `workspace` under the process working directory.
 Container deployments continue to use `/efucloud/workspaces` or the directory
 set by `TOKEN_ROUTER_CHAT_BUILTIN_WORKSPACE`.
+Production builds compile `frontend/dist` into the Go binary with `embed`, so
+the console and APIs are served from the same `9006` port without a separate
+Nginx or frontend container.
 
 To run migrations without starting the server:
 
@@ -202,7 +205,20 @@ Open `http://localhost:8001`. During development, `/api` and `/v1` are proxied t
 API_PROXY_TARGET=http://localhost:9006 npm run dev
 ```
 
-### 4. Optional upstream bootstrap
+### 4. Build the integrated image
+
+Run from the repository root:
+
+```shell
+docker build -f backend/Dockerfile -t token-router:local .
+```
+
+The image builds the frontend first and embeds its static files in the Go
+binary. GitHub Actions builds `linux/amd64` and `linux/arm64` images for pushes
+to `main` and `v*` tags and publishes them to `ghcr.io/efucloud/token-router`.
+Pull requests validate the image build without publishing it.
+
+### 5. Optional upstream bootstrap
 
 The bootstrap command creates a local administrator, provider, channel, unified model, route, and one-time test token. The upstream key is read from an environment variable and is not written to configuration files.
 
