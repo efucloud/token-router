@@ -1,9 +1,13 @@
 package config
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,9 +16,57 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"gopkg.in/yaml.v3"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
+
+const (
+	chatSkillDirectoriesEnv = "TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES"
+	chatMCPConfigFileEnv    = "TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE"
+)
+
+type chatMCPConfigDocument struct {
+	MCPServers []ChatMCPConfig `json:"mcpServers" yaml:"mcpServers"`
+}
+
+func (c *ChatConfig) applyEnvironment() error {
+	if value, configured := os.LookupEnv(chatSkillDirectoriesEnv); configured {
+		c.SkillDirectories = make([]string, 0)
+		for _, directory := range filepath.SplitList(value) {
+			if directory = strings.TrimSpace(directory); directory != "" {
+				c.SkillDirectories = append(c.SkillDirectories, directory)
+			}
+		}
+	}
+
+	path := strings.TrimSpace(os.Getenv(chatMCPConfigFileEnv))
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read MCP config file %q: %w", path, err)
+	}
+	var document chatMCPConfigDocument
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err = decoder.Decode(&document); err != nil {
+		return fmt.Errorf("decode MCP config file %q: %w", path, err)
+	}
+	if document.MCPServers == nil {
+		return fmt.Errorf("decode MCP config file %q: mcpServers is required", path)
+	}
+	var trailing any
+	if err = decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return fmt.Errorf("decode MCP config file %q: multiple YAML documents are not supported", path)
+		}
+		return fmt.Errorf("decode MCP config file %q: %w", path, err)
+	}
+	c.MCPServers = document.MCPServers
+	return nil
+}
 
 // createDBConnection  create database connection
 func createDBConnection() (err error) {
@@ -62,13 +114,16 @@ func createDBConnection() (err error) {
 	return err
 }
 func logConfig(conf *LogConfig) {
-	writeSyncer := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   conf.Filename,
-		MaxSize:    conf.MaxSize,
-		MaxBackups: conf.MaxBackups,
-		MaxAge:     conf.MaxAge,
-		Compress:   conf.Compress,
-	})
+	writeSyncers := []zapcore.WriteSyncer{zapcore.AddSync(os.Stdout)}
+	if strings.TrimSpace(conf.Filename) != "" {
+		writeSyncers = append(writeSyncers, zapcore.AddSync(&lumberjack.Logger{
+			Filename:   conf.Filename,
+			MaxSize:    conf.MaxSize,
+			MaxBackups: conf.MaxBackups,
+			MaxAge:     conf.MaxAge,
+			Compress:   conf.Compress,
+		}))
+	}
 	var encoderConfig zapcore.EncoderConfig
 	if conf.Production {
 		encoderConfig = zap.NewProductionEncoderConfig()
@@ -87,7 +142,7 @@ func logConfig(conf *LogConfig) {
 	default:
 		level = zapcore.InfoLevel
 	}
-	core := zapcore.NewCore(encoder, zapcore.NewMultiWriteSyncer(writeSyncer, zapcore.AddSync(os.Stdout)), level)
+	core := zapcore.NewCore(encoder, zapcore.NewMultiWriteSyncer(writeSyncers...), level)
 	logger := zap.New(core, zap.AddCaller())
 	Logger = logger.Sugar()
 
@@ -122,6 +177,9 @@ func (c *Config) Init() {
 		c.LogConfig.Compress = false
 	}
 	logConfig(c.LogConfig)
+	if err := c.Chat.applyEnvironment(); err != nil {
+		Logger.Fatalf("load chat capability config failed: %s", err.Error())
+	}
 	c.OidcConfig.Issuer = strings.TrimSuffix(c.OidcConfig.Issuer, "/")
 	if err := createDBConnection(); err != nil {
 		Logger.Fatalf("create database connect failed, err: %s", err.Error())

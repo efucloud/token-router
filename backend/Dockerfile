@@ -49,10 +49,24 @@ LABEL com.efucloud.build.date=${BUILD_DATE}
 
 WORKDIR /efucloud
 
+# stdio MCP 的基础运行时；需要浏览器或额外系统库时应构建派生镜像。
+RUN apk add --no-cache ca-certificates nodejs npm python3 py3-pip && \
+    addgroup -S -g 10001 token-router && \
+    adduser -S -D -u 10001 -G token-router -h /efucloud/.home token-router && \
+    mkdir -p /efucloud/config /efucloud/skills /efucloud/mcp /efucloud/log \
+      /efucloud/.home /efucloud/.cache && \
+    chown -R token-router:token-router /efucloud
+
 # 复制对应平台的二进制
 COPY --from=builder /workspace/output/token-router-$TARGETOS-$TARGETARCH /usr/local/bin/token-router
 
+ENV HOME=/efucloud/.home \
+    XDG_CACHE_HOME=/efucloud/.cache \
+    PYTHONUNBUFFERED=1 \
+    TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES=/efucloud/skills
 
-EXPOSE 9004
+USER 10001:10001
 
-ENTRYPOINT ["/usr/local/bin/token-router", "-c", "./config/config.yaml"]
+EXPOSE 9006
+
+ENTRYPOINT ["/usr/local/bin/token-router", "-c", "/efucloud/config/config.yaml"]

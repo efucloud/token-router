@@ -149,6 +149,12 @@ The following environment variables override the corresponding sensitive configu
 - `TOKEN_ROUTER_OIDC_CLIENT_ID`
 - `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
 - `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
+- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
+- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
+
+The container image supports Skills, Streamable HTTP MCP, and Node/Python stdio MCP while running
+as a non-root user. See [Skills and MCP in containers](docs/deployment/container-capabilities.md) for
+mount paths, Secret handling, and Docker Compose/Kubernetes examples.
 
 Register this browser callback URL with the OIDC provider:
 

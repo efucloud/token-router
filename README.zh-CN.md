@@ -148,6 +148,12 @@ openssl rand -base64 32
 - `TOKEN_ROUTER_OIDC_CLIENT_ID`
 - `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
 - `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
+- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`
+- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`
+
+容器镜像可在非 root 模式下直接使用 Skills、Streamable HTTP MCP 及 Node/Python stdio MCP。
+挂载目录、Secret 约束和 Compose/Kubernetes 示例见
+[容器内 Skills 与 MCP](docs/deployment/container-capabilities.md)。
 
 需要在 OIDC Provider 中登记浏览器回调地址：
 

@@ -188,6 +188,12 @@ func (r *chatMCPRegistry) session(ctx context.Context, accountID string, server 
 		if strings.TrimSpace(server.Command) == "" {
 			return nil, errors.New("MCP command is required")
 		}
+		if !filepath.IsAbs(server.Command) {
+			return nil, errors.New("MCP command must be an absolute path")
+		}
+		if server.WorkingDir != "" && !filepath.IsAbs(server.WorkingDir) {
+			return nil, errors.New("MCP working directory must be an absolute path")
+		}
 		command := exec.Command(server.Command, server.Args...)
 		command.Dir = server.WorkingDir
 		command.Env = os.Environ()
@@ -275,6 +281,7 @@ func (ChatService) Capabilities(ctx context.Context) (dtos.ChatCapabilities, err
 			CompactKeepRecent: settings.CompactKeepRecent, MaxRetries: settings.MaxRetries,
 			RetryBaseMillis: settings.RetryBaseMillis, RetryMaxMillis: settings.RetryMaxMillis, MaxToolRounds: 8,
 		},
+		MCPServers: make([]dtos.ChatMCPServerCapability, 0),
 	}
 	result.Skills, result.Issues = discoverChatSkills()
 	seen := map[string]struct{}{}

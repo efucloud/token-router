@@ -95,3 +95,12 @@ func TestChatMCPDiscoveryAndCall(t *testing.T) {
 		t.Fatal("unknown MCP tool was accepted")
 	}
 }
+
+func TestChatMCPRejectsRelativeCommand(t *testing.T) {
+	_, err := chatMCP.session(context.Background(), "chat-user", config.ChatMCPConfig{
+		Name: "relative", Type: "stdio", Enabled: true, Command: "node",
+	})
+	if err == nil || !strings.Contains(err.Error(), "absolute path") {
+		t.Fatalf("expected absolute command path error, got %v", err)
+	}
+}

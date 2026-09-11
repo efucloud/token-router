@@ -1,0 +1,18 @@
+mcpServers:
+  # 推荐：MCP 作为同一容器网络中的独立 HTTP 服务运行。
+  - name: knowledge
+    type: streamable-http
+    enabled: true
+    url: http://knowledge-mcp:3000/mcp
+    timeoutSeconds: 30
+
+  # stdio：程序目录只读挂载到 /efucloud/mcp，命令和工作目录必须是绝对路径。
+  - name: workspace
+    type: stdio
+    enabled: true
+    command: /usr/bin/node
+    args: [/efucloud/mcp/workspace/dist/index.js]
+    workingDir: /efucloud/mcp/workspace
+    environment:
+      NODE_ENV: production
+    timeoutSeconds: 30

@@ -16,6 +16,8 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 - `TOKEN_ROUTER_OIDC_CLIENT_SECRET`
 - `TOKEN_ROUTER_OIDC_SKIP_CLIENT_ID_CHECK`（`true` 时允许同一 Issuer 的跨客户端 Token）
 - `TOKEN_ROUTER_GATEWAY_SECRET_KEY`
+- `TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES`（路径列表，覆盖 `chat.skillDirectories`）
+- `TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE`（独立 MCP YAML/JSON 文件，覆盖 `chat.mcpServers`）
 
 `oidcConfig.skipClientIDCheck` 默认为 `false`，此时 Token 的 `aud` 必须包含配置的
 `clientId`。需要让共享同一 OIDC 的多个系统互通 Token 时设为 `true`；Issuer、签名、
@@ -23,6 +25,14 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 
 未配置 OIDC issuer 时，服务仍可启动数据面，但所有需要 OIDC 的控制面接口均无法通过
 认证，不会自动降级为匿名管理模式。
+
+## 容器能力
+
+后端镜像以 UID/GID `10001` 运行，监听 `9006`，并包含 Node.js/npm、Python 3/pip 供 stdio
+MCP 使用。将主配置、独立 MCP 配置、Skills 和 stdio 程序分别只读挂载到
+`/efucloud/config/config.yaml`、`/efucloud/config/mcp.yaml`、`/efucloud/skills` 和
+`/efucloud/mcp`。完整契约及 Compose/Kubernetes 示例见
+[容器内 Skills 与 MCP](../docs/deployment/container-capabilities.md)。
 
 ## 本地上游引导
 

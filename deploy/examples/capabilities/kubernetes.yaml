@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: token-router-skills
+data:
+  container-operations.SKILL.md: |
+    ---
+    name: container-operations
+    description: Follow the production container operations runbook
+    ---
+
+    Prefer read-only diagnostics and include the workload name in every result.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: token-router-mcp
+type: Opaque
+stringData:
+  mcp.yaml: |
+    mcpServers:
+      - name: knowledge
+        type: streamable-http
+        enabled: true
+        url: http://knowledge-mcp:3000/mcp
+        timeoutSeconds: 30
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-router
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: token-router
+  template:
+    metadata:
+      labels:
+        app: token-router
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: token-router
+          image: registry.cn-shenzhen.aliyuncs.com/efucloud-public/token-router:latest
+          ports:
+            - name: http
+              containerPort: 9006
+          env:
+            - name: TOKEN_ROUTER_CHAT_SKILL_DIRECTORIES
+              value: /efucloud/skills
+            - name: TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE
+              value: /efucloud/config/mcp.yaml
+          envFrom:
+            - secretRef:
+                name: token-router-environment
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+          volumeMounts:
+            - name: main-config
+              mountPath: /efucloud/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: mcp-config
+              mountPath: /efucloud/config/mcp.yaml
+              subPath: mcp.yaml
+              readOnly: true
+            - name: skills
+              mountPath: /efucloud/skills/container-operations/SKILL.md
+              subPath: container-operations.SKILL.md
+              readOnly: true
+            - name: mcp-programs
+              mountPath: /efucloud/mcp
+              readOnly: true
+            - name: cache
+              mountPath: /efucloud/.cache
+            - name: home
+              mountPath: /efucloud/.home
+            - name: log
+              mountPath: /efucloud/log
+      volumes:
+        # token-router-config 必须提供 config.yaml；敏感主配置也可改用 Secret。
+        - name: main-config
+          configMap:
+            name: token-router-config
+        - name: mcp-config
+          secret:
+            secretName: token-router-mcp
+        - name: skills
+          configMap:
+            name: token-router-skills
+        # stdio MCP 使用；只用 HTTP MCP 时可删除此卷和对应挂载。
+        - name: mcp-programs
+          persistentVolumeClaim:
+            claimName: token-router-mcp-programs
+        - name: cache
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+        - name: log
+          emptyDir: {}

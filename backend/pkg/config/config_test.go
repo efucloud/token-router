@@ -18,6 +18,9 @@ package config
 
 import (
 	"gopkg.in/yaml.v3"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -77,5 +80,51 @@ func TestChatConfigDefaults(t *testing.T) {
 	}
 	if chat.MaxRetries != 3 || chat.RetryBaseMillis != 800 || chat.RetryMaxMillis != 8000 {
 		t.Fatalf("unexpected retry defaults: %#v", chat)
+	}
+}
+
+func TestChatConfigEnvironmentOverrides(t *testing.T) {
+	firstSkillDirectory := filepath.Join(t.TempDir(), "skills-one")
+	secondSkillDirectory := filepath.Join(t.TempDir(), "skills-two")
+	mcpConfigPath := filepath.Join(t.TempDir(), "mcp.yaml")
+	mcpConfig := `mcpServers:
+  - name: workspace
+    type: stdio
+    enabled: true
+    command: /usr/bin/node
+    args: [/efucloud/mcp/workspace/index.js]
+    workingDir: /efucloud/mcp/workspace
+`
+	if err := os.WriteFile(mcpConfigPath, []byte(mcpConfig), 0o600); err != nil {
+		t.Fatalf("write MCP config: %v", err)
+	}
+	t.Setenv(chatSkillDirectoriesEnv, strings.Join([]string{firstSkillDirectory, secondSkillDirectory}, string(os.PathListSeparator)))
+	t.Setenv(chatMCPConfigFileEnv, mcpConfigPath)
+
+	chat := ChatConfig{
+		SkillDirectories: []string{"from-main-config"},
+		MCPServers:       []ChatMCPConfig{{Name: "from-main-config"}},
+	}
+	if err := chat.applyEnvironment(); err != nil {
+		t.Fatalf("apply chat environment: %v", err)
+	}
+	if len(chat.SkillDirectories) != 2 || chat.SkillDirectories[0] != firstSkillDirectory || chat.SkillDirectories[1] != secondSkillDirectory {
+		t.Fatalf("unexpected Skill directories: %#v", chat.SkillDirectories)
+	}
+	if len(chat.MCPServers) != 1 || chat.MCPServers[0].Name != "workspace" || chat.MCPServers[0].Command != "/usr/bin/node" {
+		t.Fatalf("unexpected MCP servers: %#v", chat.MCPServers)
+	}
+}
+
+func TestChatConfigRejectsInvalidMCPConfigFile(t *testing.T) {
+	mcpConfigPath := filepath.Join(t.TempDir(), "mcp.yaml")
+	if err := os.WriteFile(mcpConfigPath, []byte("mcpServerz: []\n"), 0o600); err != nil {
+		t.Fatalf("write MCP config: %v", err)
+	}
+	t.Setenv(chatMCPConfigFileEnv, mcpConfigPath)
+
+	var chat ChatConfig
+	if err := chat.applyEnvironment(); err == nil || !strings.Contains(err.Error(), "field mcpServerz not found") {
+		t.Fatalf("expected strict MCP config error, got %v", err)
 	}
 }

@@ -45,7 +45,7 @@ chat:
     retryBaseMillis: 800
     retryMaxMillis: 8000
     # 仅扫描服务端明确允许的目录；目录中的 SKILL.md 会发布到对话窗口。
-    # 例如: ["/opt/token-router/skills"]
+    # 容器镜像默认通过环境变量覆盖为 ["/efucloud/skills"]。
     skillDirectories: []
     # MCP 凭据、请求头和命令仅保留在服务端配置中，不会返回浏览器。
     # streamable-http 示例:
@@ -54,7 +54,8 @@ chat:
     #   enabled: true
     #   url: http://mcp-server:3000/mcp
     #   headers: {Authorization: "Bearer replace-me"}
-    # stdio 还可配置 command、args、workingDir 与 environment。
+    # stdio 还可配置绝对 command、args、绝对 workingDir 与 environment。
+    # 容器可设置 TOKEN_ROUTER_CHAT_MCP_CONFIG_FILE，从独立 Secret 文件覆盖此列表。
     mcpServers: []
 adminEmails:
   - admin@efucloud.com
