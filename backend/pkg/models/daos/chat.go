@@ -7,8 +7,8 @@ type ChatConversation struct {
 	AccountID  string `gorm:"column:account_id;type:varchar(50);not null" json:"accountId"`
 	Title      string `gorm:"column:title;type:varchar(255);not null" json:"title"`
 	Model      string `gorm:"column:model;type:varchar(255);not null" json:"model"`
-	Skills     string `gorm:"column:skills;type:longtext;not null;default:'[]'" json:"skills"`
-	MCPServers string `gorm:"column:mcp_servers;type:longtext;not null;default:'[]'" json:"mcpServers"`
+	Skills     string `gorm:"column:skills;type:longtext;not null" json:"skills"`
+	MCPServers string `gorm:"column:mcp_servers;type:longtext;not null" json:"mcpServers"`
 }
 
 func (*ChatConversation) TableName() string { return models.ChatConversationTableName }
