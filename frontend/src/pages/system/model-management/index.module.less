@@ -1,0 +1,160 @@
+.channelRail {
+  padding: 20px 24px 0;
+  overflow: hidden;
+  background: #fafafa;
+  border-bottom: 1px solid #edf1f7;
+
+  :global(.ant-tabs-nav) {
+    margin: 14px 0 0;
+  }
+
+}
+
+.railHeading {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+
+  span {
+    color: #17243a;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  small {
+    color: #8190a5;
+  }
+}
+
+.tabLabel {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.healthDot,
+.allDot {
+  width: 7px;
+  height: 7px;
+  background: #a7b0bf;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(167 176 191 / 16%);
+}
+
+.allDot {
+  background: #1677ff;
+  box-shadow: 0 0 0 3px rgb(22 119 255 / 14%);
+}
+
+.healthDot.healthy {
+  background: #20a66a;
+  box-shadow: 0 0 0 3px rgb(32 166 106 / 14%);
+}
+
+.modelCount {
+  min-width: 22px;
+  padding: 1px 6px;
+  color: #496078;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  background: #edf3fa;
+  border-radius: 99px;
+}
+
+.channelContext {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(280px, 1.3fr);
+  gap: 8px 28px;
+  padding: 18px 24px;
+  background: #fff;
+  border-bottom: 1px solid #edf1f7;
+
+  > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  strong {
+    color: #152238;
+    font-size: 16px;
+  }
+
+  p {
+    grid-column: 1 / -1;
+    margin: 2px 0 0;
+    color: #7b8798;
+    font-size: 12px;
+  }
+}
+
+.provider {
+  color: #1677ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.channelMeta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  color: #65748a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+
+  span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.modelIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong {
+    color: #18263a;
+  }
+
+  code {
+    width: fit-content;
+    color: #62738a;
+    font-size: 11px;
+  }
+}
+
+.upstream {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  color: #315c92;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .channelRail {
+    padding-inline: 16px;
+  }
+
+  .railHeading small {
+    display: none;
+  }
+
+  .channelContext {
+    grid-template-columns: 1fr;
+    padding-inline: 16px;
+  }
+
+  .channelMeta {
+    justify-content: flex-start;
+  }
+}

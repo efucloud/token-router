@@ -1,0 +1,138 @@
+.page {
+  min-height: 100%;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  display: none;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: #595959;
+  font-size: 12px;
+}
+
+.panel {
+  border-radius: 8px !important;
+}
+
+.endpointPanel {
+  margin-bottom: 16px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px !important;
+  background: #f7faff;
+}
+
+.endpointContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.endpointIcon {
+  display: grid;
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 18px;
+  place-items: center;
+}
+
+.endpointDetails {
+  min-width: 0;
+  flex: 1;
+}
+
+.endpointLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #262626;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.endpointValueRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.endpointValue {
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid #adc6ff;
+  border-radius: 6px;
+  background: #fff;
+  color: #0958d9;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.endpointHint {
+  margin: 8px 0 0;
+  color: #595959;
+  font-size: 12px;
+}
+
+.tokenValue {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 14px;
+  border: 1px dashed #8c8c8c;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #141414;
+  font-family: 'SFMono-Regular', 'Roboto Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.usageCell {
+  min-width: 130px;
+
+  span {
+    display: block;
+    margin-bottom: 5px;
+    color: #595959;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 24px 16px 40px;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .endpointValueRow {
+    align-items: stretch;
+    flex-direction: column;
+
+    button {
+      align-self: flex-start;
+    }
+  }
+}

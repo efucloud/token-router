@@ -1,0 +1,41 @@
+{
+  "name": "token-router-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Token Router frontend",
+  "scripts": {
+    "build": "max build",
+    "clean:dist": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "max dev --port 8001",
+    "format": "biome format --write .",
+    "lint": "biome lint . && npm run tsc",
+    "start": "npm run dev",
+    "tsc": "tsc --noEmit"
+  },
+  "browserslist": [
+    "defaults"
+  ],
+  "dependencies": {
+    "@ant-design/charts": "^2.6.7",
+    "@ant-design/icons": "^6.2.5",
+    "@ant-design/plots": "^2.6.8",
+    "@ant-design/pro-components": "^3.1.12-0",
+    "@ant-design/x-markdown": "^2.7.0",
+    "@umijs/max": "4.6.58",
+    "antd": "6.4.3",
+    "antd-style": "^4.1.0",
+    "markdown-it": "^14.2.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

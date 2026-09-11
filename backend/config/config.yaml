@@ -1,0 +1,41 @@
+# Token Router 本地配置模板。生产环境请通过部署系统注入真实凭据，勿提交密钥。
+mysql:
+    host: localhost:3306
+    user: root
+    password: EfuCloud
+    dbname: token_router
+    charset: utf8mb4
+    loc: Local
+    defaultStringSize: 255
+    disableDatetimePrecision: false
+    dontSupportRenameIndex: false
+    dontSupportRenameColumn: false
+    skipInitializeWithVersion: false
+logConfig:
+    level: debug
+    filename: ""
+    maxsize: 10
+    maxage: 30
+    maxbackups: 10
+    localtime: true
+    compress: true
+    production: false
+oidcConfig:
+    clientId: "umtsnwb4nvehzfmwaimi5knql"
+    clientSecret: "boowj4iujtvqinyw5grtmqzvpblcc6v7jhpxke5zhiktxn6zw3u"
+    issuer: "https://eauth.efucloud.com"
+    # true 时接受同一 issuer 为其他 clientId 签发的 Token。
+    skipClientIDCheck: true
+gateway:
+    # 32 字节随机密钥的 base64 编码。
+    # 当前值仅用于本地开发，生产部署必须替换。
+    secretKey: dG9rZW4tcm91dGVyLWxvY2FsLWRldi1rZXktMDAwMDE=
+    upstreamTimeoutSeconds: 120
+    maxAttempts: 3
+    failureThreshold: 3
+    cooldownSeconds: 60
+    maxRequestBodyBytes: 16777216
+    maxResponseBodyBytes: 33554432
+    maxReservedTokens: 131072
+adminEmails:
+  - admin@efucloud.com

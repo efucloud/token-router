@@ -1,0 +1,10 @@
+.git
+.umi
+.umi-*
+.turbopack
+coverage
+node_modules
+npm-debug.log*
+yarn-error.log
+yarn.lock
+pnpm-lock.yaml
