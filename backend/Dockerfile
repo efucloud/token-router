@@ -1,7 +1,5 @@
 # syntax=docker/dockerfile:1.7
 
-ARG BUILDPLATFORM
-
 FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend-builder
 
 WORKDIR /workspace/frontend
