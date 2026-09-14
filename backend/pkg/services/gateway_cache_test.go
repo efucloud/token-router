@@ -104,3 +104,46 @@ func TestPublishedModelsCacheKeepsPrincipalFiltering(t *testing.T) {
 		t.Fatalf("cached models leaked across principals: %#v, %v", models, err)
 	}
 }
+
+func TestPublishedModelsExcludeDisabledResources(t *testing.T) {
+	db := dashboardTestDatabase(t)
+	providers := []daos.Provider{
+		{GatewayRecord: daos.GatewayRecord{ID: "provider-enabled"}, Name: "enabled", Type: "openai-compatible", Status: "enabled", Config: "{}"},
+		{GatewayRecord: daos.GatewayRecord{ID: "provider-disabled"}, Name: "disabled", Type: "openai-compatible", Status: "disabled", Config: "{}"},
+	}
+	channels := []daos.Channel{
+		{GatewayRecord: daos.GatewayRecord{ID: "channel-enabled"}, ProviderID: "provider-enabled", Name: "enabled", BaseURL: "https://enabled.example.com/v1", Status: "enabled", HealthStatus: "healthy", Weight: 1},
+		{GatewayRecord: daos.GatewayRecord{ID: "channel-disabled"}, ProviderID: "provider-enabled", Name: "disabled", BaseURL: "https://disabled.example.com/v1", Status: "disabled", HealthStatus: "healthy", Weight: 1},
+		{GatewayRecord: daos.GatewayRecord{ID: "channel-provider-disabled"}, ProviderID: "provider-disabled", Name: "provider-disabled", BaseURL: "https://provider-disabled.example.com/v1", Status: "enabled", HealthStatus: "healthy", Weight: 1},
+		{GatewayRecord: daos.GatewayRecord{ID: "channel-cooldown"}, ProviderID: "provider-enabled", Name: "cooldown", BaseURL: "https://cooldown.example.com/v1", Status: "enabled", HealthStatus: "cooldown", Weight: 1},
+	}
+	models := []daos.AIModel{
+		{GatewayRecord: daos.GatewayRecord{ID: "model-available"}, Name: "available", DisplayName: "Available", Modality: "chat", Capabilities: "[]", Status: "active"},
+		{GatewayRecord: daos.GatewayRecord{ID: "model-disabled"}, Name: "model-disabled", DisplayName: "Disabled model", Modality: "chat", Capabilities: "[]", Status: "disabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "model-route-disabled"}, Name: "route-disabled", DisplayName: "Disabled route", Modality: "chat", Capabilities: "[]", Status: "active"},
+		{GatewayRecord: daos.GatewayRecord{ID: "model-channel-disabled"}, Name: "channel-disabled", DisplayName: "Disabled channel", Modality: "chat", Capabilities: "[]", Status: "active"},
+		{GatewayRecord: daos.GatewayRecord{ID: "model-provider-disabled"}, Name: "provider-disabled", DisplayName: "Disabled provider", Modality: "chat", Capabilities: "[]", Status: "active"},
+		{GatewayRecord: daos.GatewayRecord{ID: "model-cooldown"}, Name: "cooldown", DisplayName: "Cooldown", Modality: "chat", Capabilities: "[]", Status: "active"},
+	}
+	routes := []daos.ModelRoute{
+		{GatewayRecord: daos.GatewayRecord{ID: "route-available"}, ModelID: "model-available", ChannelID: "channel-enabled", UpstreamModel: "available", Weight: 1, Status: "enabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "route-model-disabled"}, ModelID: "model-disabled", ChannelID: "channel-enabled", UpstreamModel: "model-disabled", Weight: 1, Status: "enabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "route-disabled"}, ModelID: "model-route-disabled", ChannelID: "channel-enabled", UpstreamModel: "route-disabled", Weight: 1, Status: "disabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "route-channel-disabled"}, ModelID: "model-channel-disabled", ChannelID: "channel-disabled", UpstreamModel: "channel-disabled", Weight: 1, Status: "enabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "route-provider-disabled"}, ModelID: "model-provider-disabled", ChannelID: "channel-provider-disabled", UpstreamModel: "provider-disabled", Weight: 1, Status: "enabled"},
+		{GatewayRecord: daos.GatewayRecord{ID: "route-cooldown"}, ModelID: "model-cooldown", ChannelID: "channel-cooldown", UpstreamModel: "cooldown", Weight: 1, Status: "enabled"},
+	}
+	for _, value := range []any{&providers, &channels, &models, &routes} {
+		if err := db.Create(value).Error; err != nil {
+			t.Fatalf("seed published model visibility: %v", err)
+		}
+	}
+
+	published, err := (GatewayService{}).PublishedModels(context.Background(), GatewayPrincipal{SystemToken: true})
+	if err != nil {
+		t.Fatalf("list published models: %v", err)
+	}
+	if len(published) != 1 || published[0].Name != "available" {
+		t.Fatalf("disabled resources leaked into published models: %#v", published)
+	}
+}

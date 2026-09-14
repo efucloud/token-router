@@ -4,6 +4,12 @@ export type GatewayModel = {
   id: string;
   object: 'model';
   owned_by: string;
+  display_name?: string;
+  description?: string;
+  modality?: string;
+  context_window?: number;
+  max_output_tokens?: number;
+  capabilities?: string[];
 };
 
 export type ChatMessage = {

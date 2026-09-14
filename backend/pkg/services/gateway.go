@@ -40,11 +40,14 @@ const GatewayConversationHeader = "X-Token-Router-Conversation-Id"
 var gatewayChatToolNameInvalid = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
 type GatewayModel struct {
-	ID           string
-	Name         string
-	DisplayName  string
-	Modality     string
-	Capabilities string
+	ID              string
+	Name            string
+	DisplayName     string
+	Description     string
+	Modality        string
+	ContextWindow   int64
+	MaxOutputTokens int64
+	Capabilities    string
 }
 
 type GatewayRoute struct {
@@ -177,7 +180,7 @@ func (GatewayService) PublishedModels(ctx context.Context, principal GatewayPrin
 	} else {
 		cacheVersion, _ := gatewayRouteCacheVersion(ctx)
 		err := config.DBConnect.WithContext(ctx).Table("ai_model AS m").Distinct().
-			Select("m.id, m.name, m.display_name, m.modality, m.capabilities").
+			Select("m.id, m.name, m.display_name, m.description, m.modality, m.context_window, m.max_output_tokens, m.capabilities").
 			Joins("JOIN model_route AS r ON r.model_id = m.id AND r.status = ?", "enabled").
 			Joins("JOIN channel AS c ON c.id = r.channel_id AND c.status = ?", "enabled").
 			Joins("JOIN provider AS p ON p.id = c.provider_id AND p.status = ?", "enabled").

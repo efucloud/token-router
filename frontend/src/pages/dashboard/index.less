@@ -99,6 +99,242 @@
   font-size: 12px;
 }
 
+.availableModelsPanel {
+  position: relative;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid #dce8f6 !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgb(22 119 255 / 10%), transparent 28%),
+    linear-gradient(145deg, #fbfdff 0%, #f5f9ff 100%) !important;
+
+  &::after {
+    position: absolute;
+    top: -48px;
+    right: 8%;
+    width: 150px;
+    height: 150px;
+    border: 1px solid rgb(22 119 255 / 8%);
+    border-radius: 50%;
+    content: '';
+    pointer-events: none;
+  }
+}
+
+.modelPanelHeader {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+
+  p {
+    max-width: 720px;
+    margin: 6px 0 0;
+    color: #667892;
+    font-size: 13px;
+  }
+}
+
+.modelPanelTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  h2 {
+    margin: 0;
+    color: #17243a;
+    font-size: 18px;
+    font-weight: 650;
+  }
+}
+
+.modelPulse {
+  width: 8px;
+  height: 8px;
+  background: #20a66a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgb(32 166 106 / 12%);
+}
+
+.modelCount {
+  padding: 2px 8px;
+  color: #315c92;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #e6f1ff;
+  border-radius: 99px;
+}
+
+.modelPanelActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.modelSearch {
+  position: relative;
+  z-index: 1;
+  width: min(360px, 100%);
+  margin-bottom: 16px;
+  background: rgb(255 255 255 / 76%);
+}
+
+.modelCardGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modelCard,
+.modelCardSkeleton {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e3ebf5;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 88%);
+}
+
+.modelCard {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+
+  &:hover {
+    border-color: #b5d4f7;
+    box-shadow: 0 10px 24px rgb(47 84 130 / 9%);
+    transform: translateY(-2px);
+  }
+}
+
+.modelCardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  > :global(.ant-tag) {
+    flex-shrink: 0;
+    margin: 0 0 0 auto;
+  }
+}
+
+.modelGlyph {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  color: #1677ff;
+  font-size: 17px;
+  background: #eaf3ff;
+  border-radius: 8px;
+  place-items: center;
+}
+
+.modelIdentity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+
+  strong,
+  code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: #17243a;
+    font-size: 14px;
+  }
+
+  code {
+    color: #718199;
+    font-size: 11px;
+  }
+}
+
+.modelDescription {
+  display: -webkit-box;
+  min-height: 40px;
+  margin: 14px 0;
+  overflow: hidden;
+  color: #66758a;
+  font-size: 12px;
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.modelMetadata {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 12px;
+  border-top: 1px solid #edf1f6;
+
+  > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding-inline: 10px;
+    border-right: 1px solid #edf1f6;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:last-child {
+      padding-right: 0;
+      border-right: 0;
+    }
+  }
+
+  small {
+    overflow: hidden;
+    color: #8a97a9;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    overflow: hidden;
+    color: #33445c;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.modelCapabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+
+  > :global(.ant-tag) {
+    margin: 0;
+    color: #52667f;
+    font-size: 10px;
+    background: #f5f8fc;
+    border-color: #e2e9f2;
+  }
+}
+
+.modelPanelState {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+}
+
 .quotaBlock + .quotaBlock {
   margin-top: 20px;
   padding-top: 20px;
@@ -193,6 +429,10 @@
   .panelGrid {
     grid-template-columns: 1fr;
   }
+
+  .modelCardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
@@ -206,6 +446,22 @@
   }
 
   .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .modelPanelHeader {
+    flex-direction: column;
+  }
+
+  .modelPanelActions {
+    width: 100%;
+
+    > :last-child {
+      flex: 1;
+    }
+  }
+
+  .modelCardGrid {
     grid-template-columns: 1fr;
   }
 }

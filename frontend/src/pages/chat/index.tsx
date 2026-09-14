@@ -107,11 +107,7 @@ const ChatPage = () => {
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [conversationQuery, setConversationQuery] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [capabilitiesOpen, setCapabilitiesOpen] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(min-width: 1181px)').matches,
-  );
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<ChatCapabilities>(
     emptyChatCapabilities,
   );

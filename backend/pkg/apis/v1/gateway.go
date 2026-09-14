@@ -101,9 +101,15 @@ func (r GatewayResource) models(req *restful.Request, resp *restful.Response) {
 		return
 	}
 	data := make([]map[string]any, 0, len(models))
+	createdAt := time.Now().Unix()
 	for _, model := range models {
+		capabilities := make([]string, 0)
+		_ = json.Unmarshal([]byte(model.Capabilities), &capabilities)
 		data = append(data, map[string]any{
-			"id": model.Name, "object": "model", "created": time.Now().Unix(), "owned_by": "token-router",
+			"id": model.Name, "object": "model", "created": createdAt, "owned_by": "token-router",
+			"display_name": model.DisplayName, "description": model.Description, "modality": model.Modality,
+			"context_window": model.ContextWindow, "max_output_tokens": model.MaxOutputTokens,
+			"capabilities": capabilities,
 		})
 	}
 	_ = resp.WriteEntity(map[string]any{"object": "list", "data": data})
