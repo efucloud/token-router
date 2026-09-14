@@ -20,6 +20,13 @@ export default [
     hideInMenu: true,
   },
   {
+    path: '/personal/models',
+    name: 'availableModels',
+    icon: 'RobotOutlined',
+    component: './models',
+    access: 'canUsePersonalConsole',
+  },
+  {
     path: '/personal/tokens',
     name: 'apiTokens',
     icon: 'KeyOutlined',
@@ -137,6 +144,11 @@ export default [
   {
     path: '/gateway/chat',
     redirect: '/personal/chat',
+    hideInMenu: true,
+  },
+  {
+    path: '/gateway/models',
+    redirect: '/personal/models',
     hideInMenu: true,
   },
   {

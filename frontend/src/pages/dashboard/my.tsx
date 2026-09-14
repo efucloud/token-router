@@ -24,7 +24,6 @@ import {
   MetricCard,
   type DashboardRangeValue,
 } from './components';
-import AvailableModelsPanel from './available-models';
 import styles from './index.less';
 
 const quotaPercent = (ratio?: number) =>
@@ -282,8 +281,6 @@ const MyDashboardPage = () => {
           ))}
         </div>
       ) : null}
-
-      {!accountId ? <AvailableModelsPanel /> : null}
 
       <section className={styles.panelGrid}>
         <ActivityChart data={data?.trend} />
