@@ -11,6 +11,21 @@ mysql:
     dontSupportRenameIndex: false
     dontSupportRenameColumn: false
     skipInitializeWithVersion: false
+# 可选 Redis 路由缓存；删除或注释整个 redis 块即完全禁用。
+# Redis 不可用时服务自动回退到数据库，不影响网关启动和请求处理。
+# redis:
+#     enabled: true
+#     address: localhost:6379
+#     username: ""
+#     password: ""
+#     db: 0
+#     tls: false
+#     keyPrefix: token-router
+#     routeTTLSeconds: 30
+#     dialTimeoutMillis: 1000
+#     readTimeoutMillis: 500
+#     writeTimeoutMillis: 500
+#     poolSize: 0
 logConfig:
     level: debug
     filename: ""

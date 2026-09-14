@@ -2,18 +2,54 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
+
+func createRedisConnection() {
+	RedisClient = nil
+	if ApplicationConfig.Redis == nil || !ApplicationConfig.Redis.Enabled {
+		Logger.Info("redis route cache is disabled")
+		return
+	}
+	ApplicationConfig.Redis.Default()
+	c := ApplicationConfig.Redis
+	options := &redis.Options{
+		Addr:         c.Address,
+		Username:     c.Username,
+		Password:     c.Password,
+		DB:           c.DB,
+		MaxRetries:   1,
+		DialTimeout:  time.Duration(c.DialTimeoutMillis) * time.Millisecond,
+		ReadTimeout:  time.Duration(c.ReadTimeoutMillis) * time.Millisecond,
+		WriteTimeout: time.Duration(c.WriteTimeoutMillis) * time.Millisecond,
+		PoolSize:     c.PoolSize,
+	}
+	if c.TLS {
+		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	client := redis.NewClient(options)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.DialTimeoutMillis)*time.Millisecond)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		Logger.Warnf("redis route cache unavailable, continuing with database: %v", err)
+		return
+	}
+	RedisClient = client
+	Logger.Infof("redis route cache enabled at %s", c.Address)
+}
 
 // createDBConnection  create database connection
 func createDBConnection() (err error) {
@@ -107,6 +143,7 @@ func (c *Config) Init() {
 		c.LogConfig.Compress = false
 	}
 	logConfig(c.LogConfig)
+	createRedisConnection()
 	c.OidcConfig.Issuer = strings.TrimSuffix(c.OidcConfig.Issuer, "/")
 	if err := createDBConnection(); err != nil {
 		Logger.Fatalf("create database connect failed, err: %s", err.Error())

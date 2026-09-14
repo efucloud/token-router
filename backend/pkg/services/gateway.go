@@ -56,6 +56,7 @@ type GatewayRoute struct {
 	BaseURL             string
 	EncryptedAPIKey     string
 	TimeoutSeconds      int
+	HealthStatus        string
 	ConsecutiveFailures int
 }
 
@@ -171,18 +172,24 @@ func tokenAllowsModel(token daos.APIToken, model string) bool {
 
 func (GatewayService) PublishedModels(ctx context.Context, principal GatewayPrincipal) ([]GatewayModel, error) {
 	var models []GatewayModel
-	err := config.DBConnect.WithContext(ctx).Table("ai_model AS m").Distinct().
-		Select("m.id, m.name, m.display_name, m.modality, m.capabilities").
-		Joins("JOIN model_route AS r ON r.model_id = m.id AND r.status = ?", "enabled").
-		Joins("JOIN channel AS c ON c.id = r.channel_id AND c.status = ?", "enabled").
-		Joins("JOIN provider AS p ON p.id = c.provider_id AND p.status = ?", "enabled").
-		Where("m.status = ?", "active").
-		Where("c.health_status NOT IN ?", []string{"cooldown", "half_open"}).
-		Order("m.name ASC").Find(&models).Error
-	if err != nil {
-		return nil, err
+	if cached, ok := readPublishedModelsCache(ctx); ok {
+		models = cached
+	} else {
+		cacheVersion, _ := gatewayRouteCacheVersion(ctx)
+		err := config.DBConnect.WithContext(ctx).Table("ai_model AS m").Distinct().
+			Select("m.id, m.name, m.display_name, m.modality, m.capabilities").
+			Joins("JOIN model_route AS r ON r.model_id = m.id AND r.status = ?", "enabled").
+			Joins("JOIN channel AS c ON c.id = r.channel_id AND c.status = ?", "enabled").
+			Joins("JOIN provider AS p ON p.id = c.provider_id AND p.status = ?", "enabled").
+			Where("m.status = ?", "active").
+			Where("c.health_status NOT IN ?", []string{"cooldown", "half_open"}).
+			Order("m.name ASC").Find(&models).Error
+		if err != nil {
+			return nil, err
+		}
+		writePublishedModelsCache(ctx, cacheVersion, models)
 	}
-	result := models[:0]
+	result := make([]GatewayModel, 0, len(models))
 	for _, model := range models {
 		if principal.SystemToken || tokenAllowsModel(principal.Token, model.Name) {
 			result = append(result, model)
@@ -195,6 +202,10 @@ func (GatewayService) ResolveModelAndRoutes(ctx context.Context, principal Gatew
 	if !principal.SystemToken && !tokenAllowsModel(principal.Token, name) {
 		return GatewayModel{}, nil, errors.New("model is not allowed by this API key")
 	}
+	if model, routes, ok := readGatewayRouteCache(ctx, name, modality); ok {
+		return model, routes, nil
+	}
+	cacheVersion, _ := gatewayRouteCacheVersion(ctx)
 	var model GatewayModel
 	err := config.DBConnect.WithContext(ctx).Table("ai_model").
 		Select("id, name, display_name, modality, capabilities").
@@ -209,7 +220,7 @@ func (GatewayService) ResolveModelAndRoutes(ctx context.Context, principal Gatew
 	err = config.DBConnect.WithContext(ctx).Table("model_route AS r").
 		Select(`r.id AS route_id, r.channel_id, r.upstream_model,
             CASE WHEN r.priority = 0 THEN c.priority ELSE r.priority END AS priority,
-            r.weight, c.base_url, c.encrypted_api_key, c.timeout_seconds, c.consecutive_failures`).
+			r.weight, c.base_url, c.encrypted_api_key, c.timeout_seconds, c.health_status, c.consecutive_failures`).
 		Joins("JOIN channel AS c ON c.id = r.channel_id").
 		Joins("JOIN provider AS p ON p.id = c.provider_id").
 		Where("r.model_id = ? AND r.status = ?", model.ID, "enabled").
@@ -222,6 +233,7 @@ func (GatewayService) ResolveModelAndRoutes(ctx context.Context, principal Gatew
 	if len(routes) == 0 {
 		return GatewayModel{}, nil, errors.New("no route is available for this model")
 	}
+	writeGatewayRouteCache(ctx, cacheVersion, name, modality, model, routes)
 	return model, routes, nil
 }
 
@@ -605,8 +617,14 @@ func createRouteAttempt(ctx context.Context, requestID string, route GatewayRout
 }
 
 func markRouteSuccess(ctx context.Context, route GatewayRoute) {
-	_ = config.DBConnect.WithContext(ctx).Model(&daos.Channel{}).Where("id = ?", route.ChannelID).
-		Updates(map[string]any{"health_status": "healthy", "consecutive_failures": 0, "cooldown_until": nil}).Error
+	if route.HealthStatus == "healthy" && route.ConsecutiveFailures == 0 {
+		return
+	}
+	result := config.DBConnect.WithContext(ctx).Model(&daos.Channel{}).Where("id = ?", route.ChannelID).
+		Updates(map[string]any{"health_status": "healthy", "consecutive_failures": 0, "cooldown_until": nil})
+	if result.Error == nil && result.RowsAffected > 0 {
+		InvalidateGatewayRouteCache(ctx)
+	}
 }
 
 func markRouteFailure(ctx context.Context, route GatewayRoute) {
@@ -616,7 +634,10 @@ func markRouteFailure(ctx context.Context, route GatewayRoute) {
 		updates["health_status"] = "cooldown"
 		updates["cooldown_until"] = time.Now().Add(time.Duration(config.ApplicationConfig.Gateway.CooldownSeconds) * time.Second)
 	}
-	_ = config.DBConnect.WithContext(ctx).Model(&daos.Channel{}).Where("id = ?", route.ChannelID).Updates(updates).Error
+	result := config.DBConnect.WithContext(ctx).Model(&daos.Channel{}).Where("id = ?", route.ChannelID).Updates(updates)
+	if result.Error == nil && result.RowsAffected > 0 {
+		InvalidateGatewayRouteCache(ctx)
+	}
 }
 
 func copyGatewayHeaders(destination http.Header, source http.Header) {

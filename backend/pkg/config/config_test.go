@@ -54,6 +54,7 @@ func TestConfigSerialization(t *testing.T) {
 			DontSupportRenameColumn:   false,
 			SkipInitializeWithVersion: false,
 		},
+		Redis:       &RedisConfig{Enabled: true, Address: "redis.example.com:6379", DB: 2, RouteTTLSeconds: 45},
 		AdminEmails: []string{"admin@example.com"},
 		Gateway:     GatewayConfig{MaxAttempts: 2},
 		Chat: ChatConfig{
@@ -82,6 +83,9 @@ func TestConfigSerialization(t *testing.T) {
 	if decoded.Gateway.MaxAttempts != 2 || decoded.OidcConfig.ClientId != config.OidcConfig.ClientId || !decoded.OidcConfig.SkipClientIDCheck {
 		t.Fatalf("unexpected round trip result: %#v", decoded)
 	}
+	if decoded.Redis == nil || !decoded.Redis.Enabled || decoded.Redis.Address != "redis.example.com:6379" || decoded.Redis.DB != 2 || decoded.Redis.RouteTTLSeconds != 45 {
+		t.Fatalf("unexpected Redis config: %#v", decoded.Redis)
+	}
 	if len(decoded.Chat.SkillDirectories) != 1 || decoded.Chat.SkillDirectories[0] != "/srv/token-router/skills" {
 		t.Fatalf("unexpected Skill directories: %#v", decoded.Chat.SkillDirectories)
 	}
@@ -90,6 +94,20 @@ func TestConfigSerialization(t *testing.T) {
 	}
 	if !decoded.Chat.BuiltinTools.Enabled || decoded.Chat.BuiltinTools.WorkspaceDirectory != "/srv/token-router/workspaces" || decoded.Chat.BuiltinTools.MaxUploadBytes != 2048 {
 		t.Fatalf("unexpected builtin tools: %#v", decoded.Chat.BuiltinTools)
+	}
+}
+
+func TestRedisConfigDefaults(t *testing.T) {
+	var redisConfig RedisConfig
+	redisConfig.Default()
+	if redisConfig.Enabled {
+		t.Fatal("Redis must remain disabled unless explicitly enabled")
+	}
+	if redisConfig.Address != "127.0.0.1:6379" || redisConfig.KeyPrefix != "token-router" || redisConfig.RouteTTLSeconds != 30 {
+		t.Fatalf("unexpected Redis defaults: %#v", redisConfig)
+	}
+	if redisConfig.DialTimeoutMillis <= 0 || redisConfig.ReadTimeoutMillis <= 0 || redisConfig.WriteTimeoutMillis <= 0 {
+		t.Fatalf("Redis timeouts must be bounded: %#v", redisConfig)
 	}
 }
 

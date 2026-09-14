@@ -7,11 +7,50 @@ import (
 
 type Config struct {
 	Mysql       *MysqlConfig  `json:"mysql" yaml:"mysql"`
+	Redis       *RedisConfig  `json:"redis,omitempty" yaml:"redis,omitempty"`
 	LogConfig   *LogConfig    `json:"logConfig" yaml:"logConfig"`
 	OidcConfig  OidcConfig    `json:"oidcConfig" yaml:"oidcConfig" description:"认证配置"`
 	Gateway     GatewayConfig `json:"gateway" yaml:"gateway" description:"AI网关配置"`
 	Chat        ChatConfig    `json:"chat" yaml:"chat" description:"对话编排配置"`
 	AdminEmails []string      `json:"adminEmails" yaml:"adminEmails" description:"管理员邮箱列表"`
+}
+
+// RedisConfig enables the optional shared gateway route cache. Leaving the
+// redis block out keeps the service database-only.
+type RedisConfig struct {
+	Enabled            bool   `json:"enabled" yaml:"enabled" description:"是否启用Redis路由缓存"`
+	Address            string `json:"address" yaml:"address" description:"Redis地址"`
+	Username           string `json:"username" yaml:"username" description:"Redis用户名"`
+	Password           string `json:"password" yaml:"password" description:"Redis密码"`
+	DB                 int    `json:"db" yaml:"db" description:"Redis数据库编号"`
+	TLS                bool   `json:"tls" yaml:"tls" description:"是否启用TLS"`
+	KeyPrefix          string `json:"keyPrefix" yaml:"keyPrefix" description:"缓存键前缀"`
+	RouteTTLSeconds    int    `json:"routeTTLSeconds" yaml:"routeTTLSeconds" description:"路由缓存有效期秒数"`
+	DialTimeoutMillis  int    `json:"dialTimeoutMillis" yaml:"dialTimeoutMillis" description:"连接超时毫秒数"`
+	ReadTimeoutMillis  int    `json:"readTimeoutMillis" yaml:"readTimeoutMillis" description:"读取超时毫秒数"`
+	WriteTimeoutMillis int    `json:"writeTimeoutMillis" yaml:"writeTimeoutMillis" description:"写入超时毫秒数"`
+	PoolSize           int    `json:"poolSize" yaml:"poolSize" description:"连接池大小"`
+}
+
+func (r *RedisConfig) Default() {
+	if strings.TrimSpace(r.Address) == "" {
+		r.Address = "127.0.0.1:6379"
+	}
+	if strings.TrimSpace(r.KeyPrefix) == "" {
+		r.KeyPrefix = "token-router"
+	}
+	if r.RouteTTLSeconds <= 0 {
+		r.RouteTTLSeconds = 30
+	}
+	if r.DialTimeoutMillis <= 0 {
+		r.DialTimeoutMillis = 1000
+	}
+	if r.ReadTimeoutMillis <= 0 {
+		r.ReadTimeoutMillis = 500
+	}
+	if r.WriteTimeoutMillis <= 0 {
+		r.WriteTimeoutMillis = 500
+	}
 }
 
 type ChatConfig struct {

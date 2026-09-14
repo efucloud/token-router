@@ -107,6 +107,9 @@ func run(o *options.ServerRunOptions, stopCh <-chan struct{}) (err error) {
 	// ✅ 关键修复：EfuCloud 模式下没有选举阻塞主线程，需要手动等待停止信号
 	<-stopCh
 	config.Logger.Info("received shutdown signal, exiting EfuCloudMode")
+	if config.RedisClient != nil {
+		_ = config.RedisClient.Close()
+	}
 
 	return nil
 }

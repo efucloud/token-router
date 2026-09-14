@@ -151,6 +151,7 @@ func (ControlPlaneService) CreateModel(ctx context.Context, input dtos.AIModelIn
 	if err := dashboardDB(ctx).Create(&model).Error; err != nil {
 		return dtos.AIModelDetail{}, controlPlaneWriteError(err)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return aiModelDetail(aiModelRow{AIModel: model}), common.ErrorData{}
 }
 
@@ -176,6 +177,7 @@ func (ControlPlaneService) UpdateModel(ctx context.Context, id string, input dto
 	if err := dashboardDB(ctx).Table("ai_model AS m").Select("m.*, (SELECT COUNT(1) FROM model_route r WHERE r.model_id = m.id) AS route_count").Where("m.id = ?", id).First(&row).Error; err != nil {
 		return dtos.AIModelDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return aiModelDetail(row), common.ErrorData{}
 }
 
@@ -195,6 +197,7 @@ func (ControlPlaneService) DeleteModel(ctx context.Context, id string) common.Er
 	if result.RowsAffected == 0 {
 		return controlPlaneError(gorm.ErrRecordNotFound, http.StatusNotFound)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return common.ErrorData{}
 }
 
@@ -241,6 +244,7 @@ func (ControlPlaneService) CreateProvider(ctx context.Context, input dtos.Provid
 	if err = dashboardDB(ctx).Create(&model).Error; err != nil {
 		return dtos.ProviderDetail{}, controlPlaneWriteError(err)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return providerDetail(providerRow{Provider: model}), common.ErrorData{}
 }
 
@@ -264,6 +268,7 @@ func (ControlPlaneService) UpdateProvider(ctx context.Context, id string, input 
 	if err = dashboardDB(ctx).Table("provider AS p").Select("p.*, (SELECT COUNT(1) FROM channel c WHERE c.provider_id = p.id) AS channel_count").Where("p.id = ?", id).First(&row).Error; err != nil {
 		return dtos.ProviderDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return providerDetail(row), common.ErrorData{}
 }
 
@@ -283,6 +288,7 @@ func (ControlPlaneService) DeleteProvider(ctx context.Context, id string) common
 	if result.RowsAffected == 0 {
 		return controlPlaneError(gorm.ErrRecordNotFound, http.StatusNotFound)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return common.ErrorData{}
 }
 
@@ -369,6 +375,7 @@ func (ControlPlaneService) CreateChannel(ctx context.Context, input dtos.Channel
 	if err = channelSelect(dashboardDB(ctx)).Where("c.id = ?", model.ID).First(&row).Error; err != nil {
 		return dtos.ChannelDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return channelDetail(row), common.ErrorData{}
 }
 
@@ -404,6 +411,7 @@ func (ControlPlaneService) UpdateChannel(ctx context.Context, id string, input d
 	if err := channelSelect(dashboardDB(ctx)).Where("c.id = ?", id).First(&row).Error; err != nil {
 		return dtos.ChannelDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return channelDetail(row), common.ErrorData{}
 }
 
@@ -423,6 +431,7 @@ func (ControlPlaneService) DeleteChannel(ctx context.Context, id string) common.
 	if result.RowsAffected == 0 {
 		return controlPlaneError(gorm.ErrRecordNotFound, http.StatusNotFound)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return common.ErrorData{}
 }
 
@@ -453,6 +462,7 @@ func beginChannelProbe(ctx context.Context, channel *daos.Channel, timeout time.
 		}
 		channel.HealthStatus = "half_open"
 		channel.LastCheckedAt = &now
+		InvalidateGatewayRouteCache(ctx)
 		return true, "", common.ErrorData{}
 	case "half_open":
 		staleBefore := now.Add(-2 * timeout)
@@ -491,7 +501,10 @@ func recordChannelProbe(ctx context.Context, channel daos.Channel, success bool,
 			updates["cooldown_until"] = nil
 		}
 	}
-	_ = dashboardDB(ctx).Model(&daos.Channel{}).Where("id = ?", channel.ID).Updates(updates).Error
+	result := dashboardDB(ctx).Model(&daos.Channel{}).Where("id = ?", channel.ID).Updates(updates)
+	if result.Error == nil && result.RowsAffected > 0 && (channel.HealthStatus != "healthy" || channel.ConsecutiveFailures != 0 || !success) {
+		InvalidateGatewayRouteCache(ctx)
+	}
 }
 
 func (ControlPlaneService) TestChannel(ctx context.Context, id string) (dtos.ChannelTestResult, common.ErrorData) {
@@ -661,6 +674,9 @@ func (ControlPlaneService) ImportChannelModels(ctx context.Context, channelID st
 	if err != nil {
 		return dtos.ChannelModelImportResult{}, controlPlaneWriteError(err)
 	}
+	if result.ModelsCreated > 0 || result.RoutesCreated > 0 {
+		InvalidateGatewayRouteCache(ctx)
+	}
 	return result, common.ErrorData{}
 }
 
@@ -795,6 +811,9 @@ func (svc ControlPlaneService) SyncChannelModels(ctx context.Context, channelID 
 	})
 	if err != nil {
 		return dtos.ChannelModelSyncResult{}, controlPlaneWriteError(err)
+	}
+	if result.ModelsCreated > 0 || result.ModelsDeleted > 0 || result.RoutesCreated > 0 || result.RoutesDeleted > 0 {
+		InvalidateGatewayRouteCache(ctx)
 	}
 	return result, common.ErrorData{}
 }
@@ -1086,6 +1105,7 @@ func (ControlPlaneService) CreateRoute(ctx context.Context, input dtos.ModelRout
 	if err := routeSelect(dashboardDB(ctx)).Where("r.id = ?", model.ID).First(&row).Error; err != nil {
 		return dtos.ModelRouteDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return modelRouteDetail(row), common.ErrorData{}
 }
 
@@ -1108,6 +1128,7 @@ func (ControlPlaneService) UpdateRoute(ctx context.Context, id string, input dto
 	if err := routeSelect(dashboardDB(ctx)).Where("r.id = ?", id).First(&row).Error; err != nil {
 		return dtos.ModelRouteDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return modelRouteDetail(row), common.ErrorData{}
 }
 
@@ -1119,6 +1140,7 @@ func (ControlPlaneService) DeleteRoute(ctx context.Context, id string) common.Er
 	if result.RowsAffected == 0 {
 		return controlPlaneError(gorm.ErrRecordNotFound, http.StatusNotFound)
 	}
+	InvalidateGatewayRouteCache(ctx)
 	return common.ErrorData{}
 }
 

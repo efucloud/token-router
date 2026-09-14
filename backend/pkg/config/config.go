@@ -19,6 +19,7 @@ package config
 import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"sync"
@@ -34,6 +35,7 @@ var (
 	ApplicationConfig    *Config
 	configOnce           sync.Once
 	DBConnect            *gorm.DB
+	RedisClient          redis.UniversalClient
 	AuthProvider         *oidc.Provider
 	SystemVerifier       *oidc.IDTokenVerifier
 	Bundle               *i18n.Bundle
