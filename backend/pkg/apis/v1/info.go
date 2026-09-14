@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/base64"
 	"github.com/efucloud/common"
 	"github.com/efucloud/token-router/pkg/apis/filters"
 	"github.com/efucloud/token-router/pkg/config"
@@ -82,7 +81,7 @@ func (r InfoResource) liveness(_ *restful.Request, resp *restful.Response) {
 }
 
 func (r InfoResource) readiness(req *restful.Request, resp *restful.Response) {
-	checks := map[string]string{"database": "ok", "schema": "ok", "gatewaySecret": "ok"}
+	checks := map[string]string{"database": "ok", "schema": "ok"}
 	ready := true
 	if config.DBConnect == nil {
 		checks["database"] = "not configured"
@@ -104,15 +103,6 @@ func (r InfoResource) readiness(req *restful.Request, resp *restful.Response) {
 				break
 			}
 		}
-	}
-	var key []byte
-	var err error
-	if config.ApplicationConfig != nil {
-		key, err = base64.StdEncoding.DecodeString(config.ApplicationConfig.Gateway.SecretKey)
-	}
-	if config.ApplicationConfig == nil || err != nil || len(key) != 32 {
-		checks["gatewaySecret"] = "invalid"
-		ready = false
 	}
 	status := http.StatusOK
 	result := "ok"

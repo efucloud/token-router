@@ -56,7 +56,7 @@ sha256("token-router-workspace-v1\x00" + account_id) 的小写十六进制
 
 内置 `read_file`、`list_files`、`search_files`、`write_file`、`edit_file`、`apply_patch`
 和 `command.workdir` 全部使用当前用户目录作为根。`command` 的进程权限与网络权限不构成
-沙箱，仍由 `allowedRoles`、`commandEnabled`、容器安全上下文和 Kubernetes RBAC 控制；
+沙箱，仍由 `commandEnabled`、容器安全上下文和 Kubernetes RBAC 控制；
 其工作目录隔离不等于命令本身只能访问该目录。
 
 ## 5. 配置契约
@@ -68,9 +68,9 @@ sha256("token-router-workspace-v1\x00" + account_id) 的小写十六进制
 | `enabled` | `true` | 是否发布个人工作区文件工具和文件接口 |
 | `defaultEnabled` | `true` | 新会话是否默认启用内置工具 |
 | `workspaceDirectory` | `workspace` | 所有用户目录的共同根路径；相对路径基于进程运行目录 |
+| `commandEnabled` | `false` | 是否为所有已认证用户发布 `command` |
 | `maxUploadBytes` | `33554432` | 单文件上传字节上限（32 MiB） |
 | `maxOutputBytes` | `1048576` | 单次模型文件工具结果上限 |
-| `allowedRoles` | `[admin]` | 允许使用 `command` 的角色；不限制个人文件浏览和文件工具 |
 
 配置的共同根目录不存在时由服务创建；创建失败时能力接口返回局部故障，文件 API 返回
 服务不可用，服务不得回退到进程当前目录或临时目录。

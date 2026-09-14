@@ -109,7 +109,7 @@ func TestBuiltinChatToolsAndCommandDiscovery(t *testing.T) {
 	workspace := t.TempDir()
 	original := config.ApplicationConfig.Chat
 	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
-		Enabled: true, DefaultEnabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: workspace,
+		Enabled: true, DefaultEnabled: true, WorkspaceDirectory: workspace,
 		CommandEnabled: true, CommandTimeoutSeconds: 2, MaxOutputBytes: 4096,
 	}}
 	config.ApplicationConfig.Chat.Default()
@@ -182,7 +182,7 @@ func TestBuiltinFileToolsRejectWorkspaceEscape(t *testing.T) {
 	}
 	original := config.ApplicationConfig.Chat
 	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
-		Enabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: workspace,
+		Enabled: true, WorkspaceDirectory: workspace,
 	}}
 	config.ApplicationConfig.Chat.Default()
 	t.Cleanup(func() { config.ApplicationConfig.Chat = original })

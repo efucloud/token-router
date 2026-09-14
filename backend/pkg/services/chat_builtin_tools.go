@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/efucloud/token-router/pkg/config"
-	"github.com/efucloud/token-router/pkg/models/daos"
 	"github.com/efucloud/token-router/pkg/models/dtos"
 )
 
@@ -37,29 +36,6 @@ type builtinCommandInfo struct {
 // deployments. Discover it once while the package is initialized so every
 // model request sees the same bounded tool catalog.
 var builtinCommands = discoverBuiltinCommands()
-
-func builtinToolsAuthorized(ctx context.Context) bool {
-	allowed := config.ApplicationConfig.Chat.BuiltinTools.AllowedRoles
-	for _, role := range allowed {
-		if strings.TrimSpace(role) == "*" {
-			return true
-		}
-	}
-	accountID, err := chatAccountID(ctx)
-	if err != nil || config.DBConnect == nil {
-		return false
-	}
-	var account daos.Account
-	if err = config.DBConnect.WithContext(ctx).Select("role").Where("id = ?", accountID).First(&account).Error; err != nil {
-		return false
-	}
-	for _, role := range allowed {
-		if strings.EqualFold(strings.TrimSpace(role), account.Role) {
-			return true
-		}
-	}
-	return false
-}
 
 func discoverBuiltinCommands() []builtinCommandInfo {
 	seen := map[string]string{}
@@ -125,7 +101,7 @@ func builtinObjectSchema(required []string, properties map[string]any) map[strin
 	return result
 }
 
-func builtinChatTools(ctx context.Context) []chatBuiltinTool {
+func builtinChatTools(_ context.Context) []chatBuiltinTool {
 	tools := []chatBuiltinTool{
 		{
 			capability: dtos.ChatMCPToolCapability{
@@ -194,7 +170,7 @@ func builtinChatTools(ctx context.Context) []chatBuiltinTool {
 			}, call: callBuiltinDiscoverCommands,
 		},
 	}
-	if config.ApplicationConfig.Chat.BuiltinTools.CommandEnabled && builtinToolsAuthorized(ctx) {
+	if config.ApplicationConfig.Chat.BuiltinTools.CommandEnabled {
 		tools = append(tools, chatBuiltinTool{
 			capability: dtos.ChatMCPToolCapability{
 				Name:        "command",

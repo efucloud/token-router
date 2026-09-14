@@ -16,16 +16,11 @@ oidcConfig:
   clientSecret: replace-me
   skipClientIDCheck: false
 
-gateway:
-  # 生成方式：openssl rand -base64 32
-  secretKey: replace-with-base64-encoded-32-byte-key
-
 chat:
   skillDirectories: [/efucloud/skills]
   builtinTools:
     enabled: true
     defaultEnabled: true
-    allowedRoles: [admin]
     workspaceDirectory: /efucloud/workspaces
     commandEnabled: false
   mcpServers:

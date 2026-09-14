@@ -42,9 +42,6 @@ oidcConfig:
     # true 时接受同一 issuer 为其他 clientId 签发的 Token。
     skipClientIDCheck: true
 gateway:
-    # 32 字节随机密钥的 base64 编码。
-    # 当前值仅用于本地开发，生产部署必须替换。
-    secretKey: dG9rZW4tcm91dGVyLWxvY2FsLWRldi1rZXktMDAwMDE=
     upstreamTimeoutSeconds: 120
     maxAttempts: 3
     failureThreshold: 3
@@ -64,8 +61,6 @@ chat:
     builtinTools:
         enabled: true
         defaultEnabled: true
-        # allowedRoles 仅控制 command；个人文件工具对所有已登录用户开放。
-        allowedRoles: [admin]
         # 留空或删除时，默认在进程运行目录创建 workspace；容器配置建议设为 /efucloud/workspaces。
         workspaceDirectory: workspace
         commandEnabled: true

@@ -120,7 +120,7 @@ func TestChatConfigDefaults(t *testing.T) {
 	if chat.MaxRetries != 3 || chat.RetryBaseMillis != 800 || chat.RetryMaxMillis != 8000 {
 		t.Fatalf("unexpected retry defaults: %#v", chat)
 	}
-	if chat.BuiltinTools.WorkspaceDirectory != "workspace" || len(chat.BuiltinTools.AllowedRoles) != 1 || chat.BuiltinTools.AllowedRoles[0] != "admin" || chat.BuiltinTools.CommandTimeoutSeconds != 120 || chat.BuiltinTools.MaxOutputBytes != 1<<20 || chat.BuiltinTools.MaxUploadBytes != 32<<20 {
+	if chat.BuiltinTools.WorkspaceDirectory != "workspace" || chat.BuiltinTools.CommandTimeoutSeconds != 120 || chat.BuiltinTools.MaxOutputBytes != 1<<20 || chat.BuiltinTools.MaxUploadBytes != 32<<20 {
 		t.Fatalf("unexpected builtin tool defaults: %#v", chat.BuiltinTools)
 	}
 }

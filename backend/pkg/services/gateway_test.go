@@ -74,7 +74,7 @@ func TestInjectConversationToolsBuildsDefinitionsOnServer(t *testing.T) {
 	db := dashboardTestDatabase(t)
 	previousConfig := config.ApplicationConfig
 	config.ApplicationConfig = &config.Config{Chat: config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
-		Enabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: t.TempDir(),
+		Enabled: true, WorkspaceDirectory: t.TempDir(),
 	}}}
 	config.ApplicationConfig.Chat.Default()
 	t.Cleanup(func() { config.ApplicationConfig = previousConfig })

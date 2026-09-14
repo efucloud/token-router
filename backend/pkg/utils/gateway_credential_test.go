@@ -1,29 +1,26 @@
 package utils
 
 import (
-	"encoding/base64"
-	"strings"
 	"testing"
 )
 
-func gatewayTestKey(fill byte) string {
-	return base64.StdEncoding.EncodeToString([]byte(strings.Repeat(string(fill), 32)))
-}
-
 func TestGatewayCredentialRoundTrip(t *testing.T) {
-	key := gatewayTestKey('a')
-	first, err := EncryptGatewayCredential("sk-secret", key)
+	key, err := decodeGatewayMasterKey()
+	if err != nil || len(key) != 32 {
+		t.Fatalf("invalid built-in master key: length=%d err=%v", len(key), err)
+	}
+	first, err := EncryptGatewayCredential("sk-secret")
 	if err != nil {
 		t.Fatalf("encrypt credential: %v", err)
 	}
-	second, err := EncryptGatewayCredential("sk-secret", key)
+	second, err := EncryptGatewayCredential("sk-secret")
 	if err != nil {
 		t.Fatalf("encrypt credential again: %v", err)
 	}
 	if first == second {
 		t.Fatal("ciphertexts must differ because each encryption needs a new nonce")
 	}
-	plaintext, err := DecryptGatewayCredential(first, key)
+	plaintext, err := DecryptGatewayCredential(first)
 	if err != nil {
 		t.Fatalf("decrypt credential: %v", err)
 	}
@@ -32,25 +29,19 @@ func TestGatewayCredentialRoundTrip(t *testing.T) {
 	}
 }
 
-func TestGatewayCredentialRejectsInvalidKeyAndTampering(t *testing.T) {
-	if _, err := EncryptGatewayCredential("secret", base64.StdEncoding.EncodeToString([]byte("short"))); err == nil {
-		t.Fatal("expected invalid key length to fail")
-	}
-	key := gatewayTestKey('a')
-	encrypted, err := EncryptGatewayCredential("secret", key)
+func TestGatewayCredentialRejectsTampering(t *testing.T) {
+	encrypted, err := EncryptGatewayCredential("secret")
 	if err != nil {
 		t.Fatalf("encrypt credential: %v", err)
 	}
-	last := encrypted[len(encrypted)-1]
+	tamperedIndex := len(gatewayCredentialVersion) + 1
+	current := encrypted[tamperedIndex]
 	replacement := byte('A')
-	if last == replacement {
+	if current == replacement {
 		replacement = 'B'
 	}
-	tampered := encrypted[:len(encrypted)-1] + string(replacement)
-	if _, err = DecryptGatewayCredential(tampered, key); err == nil {
+	tampered := encrypted[:tamperedIndex] + string(replacement) + encrypted[tamperedIndex+1:]
+	if _, err = DecryptGatewayCredential(tampered); err == nil {
 		t.Fatal("expected tampered ciphertext to fail")
-	}
-	if _, err = DecryptGatewayCredential(encrypted, gatewayTestKey('b')); err == nil {
-		t.Fatal("expected wrong key to fail")
 	}
 }

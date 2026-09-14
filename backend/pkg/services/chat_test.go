@@ -80,7 +80,7 @@ func TestChatTitleIsNormalizedAndBounded(t *testing.T) {
 func TestLegacyConversationUsesDefaultToolsUntilUserChangesSelection(t *testing.T) {
 	originalChat := config.ApplicationConfig.Chat
 	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
-		Enabled: true, DefaultEnabled: true, AllowedRoles: []string{"*"}, WorkspaceDirectory: t.TempDir(),
+		Enabled: true, DefaultEnabled: true, WorkspaceDirectory: t.TempDir(),
 	}}
 	config.ApplicationConfig.Chat.Default()
 	t.Cleanup(func() { config.ApplicationConfig.Chat = originalChat })

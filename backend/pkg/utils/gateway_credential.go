@@ -12,33 +12,26 @@ import (
 )
 
 const (
-	gatewayCredentialVersion = "v1"
-	gatewayCredentialAAD     = "token-router:gateway-credential:v1"
+	gatewayCredentialVersion   = "v1"
+	gatewayCredentialAAD       = "token-router:gateway-credential:v1"
+	gatewayCredentialMasterKey = "tjXNPZBQzu5qG1Z0B+zt9fhHZ7bz44OwSd4ZsCXGS0k="
 )
 
-func decodeGatewayMasterKey(encodedKey string) ([]byte, error) {
-	encodedKey = strings.TrimSpace(encodedKey)
-	if encodedKey == "" {
-		return nil, errors.New("gateway secret key is not configured")
-	}
-
-	key, err := base64.StdEncoding.DecodeString(encodedKey)
+func decodeGatewayMasterKey() ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(gatewayCredentialMasterKey)
 	if err != nil {
-		key, err = base64.RawStdEncoding.DecodeString(encodedKey)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("gateway secret key must be base64 encoded: %w", err)
+		return nil, fmt.Errorf("decode built-in gateway credential key: %w", err)
 	}
 	if len(key) != 32 {
-		return nil, fmt.Errorf("gateway secret key must decode to 32 bytes, got %d", len(key))
+		return nil, fmt.Errorf("built-in gateway credential key must decode to 32 bytes, got %d", len(key))
 	}
 	return key, nil
 }
 
 // EncryptGatewayCredential encrypts an upstream credential with AES-256-GCM.
 // The result contains a format version and a random nonce and is safe to store.
-func EncryptGatewayCredential(plaintext, encodedKey string) (string, error) {
-	key, err := decodeGatewayMasterKey(encodedKey)
+func EncryptGatewayCredential(plaintext string) (string, error) {
+	key, err := decodeGatewayMasterKey()
 	if err != nil {
 		return "", err
 	}
@@ -61,12 +54,12 @@ func EncryptGatewayCredential(plaintext, encodedKey string) (string, error) {
 }
 
 // DecryptGatewayCredential decrypts a value created by EncryptGatewayCredential.
-func DecryptGatewayCredential(encrypted, encodedKey string) (string, error) {
+func DecryptGatewayCredential(encrypted string) (string, error) {
 	version, payloadText, found := strings.Cut(encrypted, ":")
 	if !found || version != gatewayCredentialVersion {
 		return "", errors.New("unsupported gateway credential format")
 	}
-	key, err := decodeGatewayMasterKey(encodedKey)
+	key, err := decodeGatewayMasterKey()
 	if err != nil {
 		return "", err
 	}

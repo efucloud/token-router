@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,10 +17,7 @@ import (
 func TestControlPlaneCRUDAndChannelHealth(t *testing.T) {
 	dashboardTestDatabase(t)
 	previousConfig := config.ApplicationConfig
-	config.ApplicationConfig = &config.Config{Gateway: config.GatewayConfig{
-		SecretKey:              base64.StdEncoding.EncodeToString([]byte("12345678901234567890123456789012")),
-		UpstreamTimeoutSeconds: 5,
-	}}
+	config.ApplicationConfig = &config.Config{Gateway: config.GatewayConfig{UpstreamTimeoutSeconds: 5}}
 	t.Cleanup(func() { config.ApplicationConfig = previousConfig })
 
 	server := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {

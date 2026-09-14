@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	encryptedAPIKey, err := utils.EncryptGatewayCredential(apiKey, config.ApplicationConfig.Gateway.SecretKey)
+	encryptedAPIKey, err := utils.EncryptGatewayCredential(apiKey)
 	if err != nil {
 		fatal(err)
 	}

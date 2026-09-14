@@ -66,14 +66,13 @@ type ChatConfig struct {
 }
 
 type ChatBuiltinToolsConfig struct {
-	Enabled               bool     `json:"enabled" yaml:"enabled" description:"是否发布个人工作区与内置文件工具"`
-	DefaultEnabled        bool     `json:"defaultEnabled" yaml:"defaultEnabled" description:"新会话是否默认启用内置工具"`
-	AllowedRoles          []string `json:"allowedRoles" yaml:"allowedRoles" description:"允许使用command的系统角色，*表示所有已认证用户"`
-	WorkspaceDirectory    string   `json:"workspaceDirectory" yaml:"workspaceDirectory" description:"所有用户个人工作区的共同根目录"`
-	CommandEnabled        bool     `json:"commandEnabled" yaml:"commandEnabled" description:"是否发布命令执行工具"`
-	CommandTimeoutSeconds int      `json:"commandTimeoutSeconds" yaml:"commandTimeoutSeconds" description:"命令默认和最大超时秒数"`
-	MaxOutputBytes        int64    `json:"maxOutputBytes" yaml:"maxOutputBytes" description:"单次工具结果最大字节数"`
-	MaxUploadBytes        int64    `json:"maxUploadBytes" yaml:"maxUploadBytes" description:"个人工作区单文件上传最大字节数"`
+	Enabled               bool   `json:"enabled" yaml:"enabled" description:"是否发布个人工作区与内置文件工具"`
+	DefaultEnabled        bool   `json:"defaultEnabled" yaml:"defaultEnabled" description:"新会话是否默认启用内置工具"`
+	WorkspaceDirectory    string `json:"workspaceDirectory" yaml:"workspaceDirectory" description:"所有用户个人工作区的共同根目录"`
+	CommandEnabled        bool   `json:"commandEnabled" yaml:"commandEnabled" description:"是否发布命令执行工具"`
+	CommandTimeoutSeconds int    `json:"commandTimeoutSeconds" yaml:"commandTimeoutSeconds" description:"命令默认和最大超时秒数"`
+	MaxOutputBytes        int64  `json:"maxOutputBytes" yaml:"maxOutputBytes" description:"单次工具结果最大字节数"`
+	MaxUploadBytes        int64  `json:"maxUploadBytes" yaml:"maxUploadBytes" description:"个人工作区单文件上传最大字节数"`
 }
 
 type ChatMCPConfig struct {
@@ -111,9 +110,6 @@ func (c *ChatConfig) Default() {
 	if strings.TrimSpace(c.BuiltinTools.WorkspaceDirectory) == "" {
 		c.BuiltinTools.WorkspaceDirectory = "workspace"
 	}
-	if len(c.BuiltinTools.AllowedRoles) == 0 {
-		c.BuiltinTools.AllowedRoles = []string{"admin"}
-	}
 	if c.BuiltinTools.CommandTimeoutSeconds <= 0 {
 		c.BuiltinTools.CommandTimeoutSeconds = 120
 	}
@@ -126,15 +122,13 @@ func (c *ChatConfig) Default() {
 }
 
 type GatewayConfig struct {
-	// SecretKey is a base64 encoded 32-byte AES-256 key used for upstream credentials.
-	SecretKey              string `json:"secretKey" yaml:"secretKey" description:"上游凭据加密主密钥"`
-	UpstreamTimeoutSeconds int    `json:"upstreamTimeoutSeconds" yaml:"upstreamTimeoutSeconds" description:"默认上游超时秒数"`
-	MaxAttempts            int    `json:"maxAttempts" yaml:"maxAttempts" description:"单次请求最大上游尝试次数"`
-	FailureThreshold       int    `json:"failureThreshold" yaml:"failureThreshold" description:"进入冷却的连续失败次数"`
-	CooldownSeconds        int    `json:"cooldownSeconds" yaml:"cooldownSeconds" description:"渠道冷却秒数"`
-	MaxRequestBodyBytes    int64  `json:"maxRequestBodyBytes" yaml:"maxRequestBodyBytes" description:"最大请求体字节数"`
-	MaxResponseBodyBytes   int64  `json:"maxResponseBodyBytes" yaml:"maxResponseBodyBytes" description:"最大普通响应体字节数"`
-	MaxReservedTokens      int64  `json:"maxReservedTokens" yaml:"maxReservedTokens" description:"单请求最大预留Token数"`
+	UpstreamTimeoutSeconds int   `json:"upstreamTimeoutSeconds" yaml:"upstreamTimeoutSeconds" description:"默认上游超时秒数"`
+	MaxAttempts            int   `json:"maxAttempts" yaml:"maxAttempts" description:"单次请求最大上游尝试次数"`
+	FailureThreshold       int   `json:"failureThreshold" yaml:"failureThreshold" description:"进入冷却的连续失败次数"`
+	CooldownSeconds        int   `json:"cooldownSeconds" yaml:"cooldownSeconds" description:"渠道冷却秒数"`
+	MaxRequestBodyBytes    int64 `json:"maxRequestBodyBytes" yaml:"maxRequestBodyBytes" description:"最大请求体字节数"`
+	MaxResponseBodyBytes   int64 `json:"maxResponseBodyBytes" yaml:"maxResponseBodyBytes" description:"最大普通响应体字节数"`
+	MaxReservedTokens      int64 `json:"maxReservedTokens" yaml:"maxReservedTokens" description:"单请求最大预留Token数"`
 }
 
 func (g *GatewayConfig) Default() {

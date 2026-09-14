@@ -772,7 +772,7 @@ func (GatewayService) Proxy(ctx context.Context, writer http.ResponseWriter, req
 		apiKey := ""
 		var keyErr error
 		if route.EncryptedAPIKey != "" {
-			apiKey, keyErr = utils.DecryptGatewayCredential(route.EncryptedAPIKey, config.ApplicationConfig.Gateway.SecretKey)
+			apiKey, keyErr = utils.DecryptGatewayCredential(route.EncryptedAPIKey)
 		}
 		upstreamBody, bodyErr := rewriteGatewayRequest(body, route.UpstreamModel, endpoint, streaming)
 		if urlErr != nil || keyErr != nil || bodyErr != nil {

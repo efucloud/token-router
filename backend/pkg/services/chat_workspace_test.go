@@ -159,12 +159,12 @@ func TestPersonalWorkspaceUploadLimitLeavesNoTemporaryFile(t *testing.T) {
 	}
 }
 
-func TestPersonalFileToolsDoNotGrantCommandToUnconfiguredRole(t *testing.T) {
+func TestCommandEnabledPublishesCommandToAuthenticatedUser(t *testing.T) {
 	base := t.TempDir()
 	original := config.ApplicationConfig.Chat
 	config.ApplicationConfig.Chat = config.ChatConfig{BuiltinTools: config.ChatBuiltinToolsConfig{
 		Enabled: true, DefaultEnabled: true, WorkspaceDirectory: base,
-		CommandEnabled: true, AllowedRoles: []string{"admin"},
+		CommandEnabled: true,
 	}}
 	config.ApplicationConfig.Chat.Default()
 	t.Cleanup(func() { config.ApplicationConfig.Chat = original })
@@ -174,10 +174,14 @@ func TestPersonalFileToolsDoNotGrantCommandToUnconfiguredRole(t *testing.T) {
 	if err != nil || len(capabilities.MCPServers) != 1 {
 		t.Fatalf("personal file capability missing: %#v err=%v", capabilities, err)
 	}
+	commandPublished := false
 	for _, tool := range capabilities.MCPServers[0].Tools {
 		if tool.Name == "command" {
-			t.Fatal("command was published to an unconfigured role")
+			commandPublished = true
 		}
+	}
+	if !commandPublished {
+		t.Fatal("command was not published when commandEnabled is true")
 	}
 	result, err := (ChatService{}).CallMCPTool(ctx, builtinChatServerName, "write_file", map[string]any{
 		"path": "welcome.txt", "content": "hello",
@@ -185,7 +189,8 @@ func TestPersonalFileToolsDoNotGrantCommandToUnconfiguredRole(t *testing.T) {
 	if err != nil || result.IsError {
 		t.Fatalf("personal file tool was denied: result=%#v err=%v", result, err)
 	}
-	if _, err = (ChatService{}).CallMCPTool(ctx, builtinChatServerName, "command", map[string]any{"command": "true"}); err == nil {
-		t.Fatal("command call was accepted for an unconfigured role")
+	result, err = (ChatService{}).CallMCPTool(ctx, builtinChatServerName, "command", map[string]any{"command": "true"})
+	if err != nil || result.IsError {
+		t.Fatalf("command call was rejected: result=%#v err=%v", result, err)
 	}
 }

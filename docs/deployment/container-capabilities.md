@@ -23,8 +23,7 @@ MCP。服务监听 `9006`，以 UID/GID `10001` 运行，不需要也不应给�
 `chat.builtinTools.commandEnabled` 后还会发布 `command`。这些工具无需部署独立 MCP Server；
 在能力接口和会话中以 `builtin` 工具提供者出现。
 个人文件工具对所有已认证账号发布，服务端在 `workspaceDirectory` 下使用账号 ID 的稳定哈希
-子目录强制隔离。`chat.builtinTools.allowedRoles` 仅控制 `command`，其中 `"*"` 表示所有
-已认证用户。
+子目录强制隔离。`chat.builtinTools.commandEnabled=true` 时，`command` 对所有已认证用户发布。
 
 服务启动时扫描自身 `PATH` 中的可执行程序。`command` 的模型说明会列出检测到的常用工具，
 模型也可调用 `discover_commands` 按名称查询。因此派生镜像只要安装 `kubectl`、`helm`、

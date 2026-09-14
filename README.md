@@ -115,7 +115,7 @@ token-router/
 
 ### 1. Configure the backend
 
-Edit `backend/config/config.yaml`. Do not commit production credentials. The minimum areas are database, OIDC, gateway secret, and administrator emails:
+Edit `backend/config/config.yaml`. Do not commit production credentials. The minimum areas are database, OIDC, and administrator emails:
 
 ```yaml
 mysql:
@@ -129,18 +129,8 @@ oidcConfig:
   clientId: token-router
   clientSecret: replace-me
 
-gateway:
-  # Base64 encoding of exactly 32 random bytes.
-  secretKey: replace-me
-
 adminEmails:
   - platform-admin@example.com
-```
-
-Generate a development gateway key with:
-
-```shell
-openssl rand -base64 32
 ```
 
 The backend reads runtime settings only from the YAML file selected by `-c`/`--config`.

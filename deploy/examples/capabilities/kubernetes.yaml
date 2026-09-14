@@ -20,14 +20,11 @@ stringData:
       clientId: token-router
       clientSecret: replace-me
       skipClientIDCheck: false
-    gateway:
-      secretKey: replace-with-base64-encoded-32-byte-key
     chat:
       skillDirectories: [/efucloud/skills]
       builtinTools:
         enabled: true
         defaultEnabled: true
-        allowedRoles: [admin]
         workspaceDirectory: /efucloud/workspaces
         commandEnabled: false
       mcpServers:

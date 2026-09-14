@@ -357,7 +357,7 @@ func (ControlPlaneService) CreateChannel(ctx context.Context, input dtos.Channel
 	encrypted := ""
 	var err error
 	if strings.TrimSpace(input.APIKey) != "" {
-		encrypted, err = utils.EncryptGatewayCredential(input.APIKey, config.ApplicationConfig.Gateway.SecretKey)
+		encrypted, err = utils.EncryptGatewayCredential(input.APIKey)
 		if err != nil {
 			return dtos.ChannelDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 		}
@@ -396,7 +396,7 @@ func (ControlPlaneService) UpdateChannel(ctx context.Context, id string, input d
 		"version": gorm.Expr("version + 1"),
 	}
 	if strings.TrimSpace(input.APIKey) != "" {
-		encrypted, err := utils.EncryptGatewayCredential(input.APIKey, config.ApplicationConfig.Gateway.SecretKey)
+		encrypted, err := utils.EncryptGatewayCredential(input.APIKey)
 		if err != nil {
 			return dtos.ChannelDetail{}, controlPlaneError(err, http.StatusInternalServerError)
 		}
@@ -536,7 +536,7 @@ func (ControlPlaneService) TestChannel(ctx context.Context, id string) (dtos.Cha
 		return dtos.ChannelTestResult{}, controlPlaneError(err, http.StatusBadRequest)
 	}
 	if channel.EncryptedAPIKey != "" {
-		apiKey, decryptErr := utils.DecryptGatewayCredential(channel.EncryptedAPIKey, config.ApplicationConfig.Gateway.SecretKey)
+		apiKey, decryptErr := utils.DecryptGatewayCredential(channel.EncryptedAPIKey)
 		if decryptErr != nil {
 			recordChannelProbe(ctx, channel, false, time.Now(), 0, "upstream credential cannot be decrypted")
 			return dtos.ChannelTestResult{}, controlPlaneError(decryptErr, http.StatusInternalServerError)
@@ -932,7 +932,7 @@ func (ControlPlaneService) RunModelDiagnostic(ctx context.Context, input dtos.Mo
 		apiKey := ""
 		var keyErr error
 		if route.EncryptedAPIKey != "" {
-			apiKey, keyErr = utils.DecryptGatewayCredential(route.EncryptedAPIKey, config.ApplicationConfig.Gateway.SecretKey)
+			apiKey, keyErr = utils.DecryptGatewayCredential(route.EncryptedAPIKey)
 		}
 		body, bodyErr := rewriteGatewayRequest(requestBody, route.UpstreamModel, "/chat/completions", true)
 		if urlErr != nil || keyErr != nil || bodyErr != nil {

@@ -114,7 +114,7 @@ token-router/
 
 ### 1. 配置后端
 
-编辑 `backend/config/config.yaml`。生产凭据不得提交到仓库。至少需要配置数据库、OIDC、网关密钥和管理员邮箱：
+编辑 `backend/config/config.yaml`。生产凭据不得提交到仓库。至少需要配置数据库、OIDC 和管理员邮箱：
 
 ```yaml
 mysql:
@@ -128,18 +128,8 @@ oidcConfig:
   clientId: token-router
   clientSecret: replace-me
 
-gateway:
-  # 恰好 32 个随机字节的 Base64 编码。
-  secretKey: replace-me
-
 adminEmails:
   - platform-admin@example.com
-```
-
-生成开发网关密钥：
-
-```shell
-openssl rand -base64 32
 ```
 
 后端运行配置只从 `-c`/`--config` 指定的 YAML 文件读取。生产凭据应由部署系统以受保护的

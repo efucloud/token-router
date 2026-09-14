@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +21,7 @@ func readinessResponse(t *testing.T) *httptest.ResponseRecorder {
 	return recorder
 }
 
-func TestReadinessChecksDatabaseSchemaAndGatewaySecret(t *testing.T) {
+func TestReadinessChecksDatabaseSchema(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open readiness database: %v", err)
@@ -33,21 +32,12 @@ func TestReadinessChecksDatabaseSchemaAndGatewaySecret(t *testing.T) {
 		}
 	}
 	previousDB := config.DBConnect
-	previousConfig := config.ApplicationConfig
 	config.DBConnect = db
-	config.ApplicationConfig = &config.Config{Gateway: config.GatewayConfig{
-		SecretKey: base64.StdEncoding.EncodeToString([]byte("12345678901234567890123456789012")),
-	}}
 	t.Cleanup(func() {
 		config.DBConnect = previousDB
-		config.ApplicationConfig = previousConfig
 	})
 
 	if response := readinessResponse(t); response.Code != http.StatusOK {
 		t.Fatalf("expected ready response, got %d: %s", response.Code, response.Body.String())
-	}
-	config.ApplicationConfig.Gateway.SecretKey = "invalid"
-	if response := readinessResponse(t); response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected invalid secret to fail readiness, got %d: %s", response.Code, response.Body.String())
 	}
 }
