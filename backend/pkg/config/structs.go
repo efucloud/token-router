@@ -18,39 +18,39 @@ type Config struct {
 // RedisConfig enables the optional shared gateway route cache. Leaving the
 // redis block out keeps the service database-only.
 type RedisConfig struct {
-	Enabled            bool   `json:"enabled" yaml:"enabled" description:"是否启用Redis路由缓存"`
-	Address            string `json:"address" yaml:"address" description:"Redis地址"`
-	Username           string `json:"username" yaml:"username" description:"Redis用户名"`
-	Password           string `json:"password" yaml:"password" description:"Redis密码"`
-	DB                 int    `json:"db" yaml:"db" description:"Redis数据库编号"`
-	TLS                bool   `json:"tls" yaml:"tls" description:"是否启用TLS"`
-	KeyPrefix          string `json:"keyPrefix" yaml:"keyPrefix" description:"缓存键前缀"`
-	RouteTTLSeconds    int    `json:"routeTTLSeconds" yaml:"routeTTLSeconds" description:"路由缓存有效期秒数"`
-	DialTimeoutMillis  int    `json:"dialTimeoutMillis" yaml:"dialTimeoutMillis" description:"连接超时毫秒数"`
-	ReadTimeoutMillis  int    `json:"readTimeoutMillis" yaml:"readTimeoutMillis" description:"读取超时毫秒数"`
-	WriteTimeoutMillis int    `json:"writeTimeoutMillis" yaml:"writeTimeoutMillis" description:"写入超时毫秒数"`
-	PoolSize           int    `json:"poolSize" yaml:"poolSize" description:"连接池大小"`
+	Enabled    bool     `json:"enabled" yaml:"enabled" description:"是否启用Redis路由缓存"`
+	Mode       string   `json:"mode" yaml:"mode" description:"standalone、sentinel或cluster"`
+	Addresses  []string `json:"addresses" yaml:"addresses" description:"Redis或Sentinel节点地址"`
+	Password   string   `json:"password" yaml:"password" description:"Redis密码"`
+	MasterName string   `json:"masterName" yaml:"masterName" description:"Sentinel主节点名称"`
 }
 
 func (r *RedisConfig) Default() {
-	if strings.TrimSpace(r.Address) == "" {
-		r.Address = "127.0.0.1:6379"
+	r.Mode = strings.ToLower(strings.TrimSpace(r.Mode))
+	if r.Mode == "" {
+		r.Mode = "standalone"
 	}
-	if strings.TrimSpace(r.KeyPrefix) == "" {
-		r.KeyPrefix = "token-router"
+	if r.Mode == "master" {
+		r.Mode = "standalone"
 	}
-	if r.RouteTTLSeconds <= 0 {
-		r.RouteTTLSeconds = 30
+	addresses := make([]string, 0, len(r.Addresses))
+	seen := make(map[string]struct{}, len(r.Addresses))
+	for _, address := range r.Addresses {
+		address = strings.TrimSpace(address)
+		if address == "" {
+			continue
+		}
+		if _, exists := seen[address]; exists {
+			continue
+		}
+		seen[address] = struct{}{}
+		addresses = append(addresses, address)
 	}
-	if r.DialTimeoutMillis <= 0 {
-		r.DialTimeoutMillis = 1000
+	if len(addresses) == 0 {
+		addresses = []string{"127.0.0.1:6379"}
 	}
-	if r.ReadTimeoutMillis <= 0 {
-		r.ReadTimeoutMillis = 500
-	}
-	if r.WriteTimeoutMillis <= 0 {
-		r.WriteTimeoutMillis = 500
-	}
+	r.Addresses = addresses
+	r.MasterName = strings.TrimSpace(r.MasterName)
 }
 
 type ChatConfig struct {

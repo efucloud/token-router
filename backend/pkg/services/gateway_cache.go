@@ -15,27 +15,18 @@ import (
 
 const gatewayRouteCacheVersionKey = "gateway-routes:version"
 
+const (
+	gatewayRouteCachePrefix = "token-router"
+	gatewayRouteCacheTTL    = 30 * time.Second
+)
+
 type gatewayRouteCacheEntry struct {
 	Model  GatewayModel   `json:"model"`
 	Routes []GatewayRoute `json:"routes"`
 }
 
 func gatewayCacheKey(parts ...string) string {
-	prefix := "token-router"
-	if config.ApplicationConfig != nil && config.ApplicationConfig.Redis != nil {
-		if configured := strings.TrimSpace(config.ApplicationConfig.Redis.KeyPrefix); configured != "" {
-			prefix = configured
-		}
-	}
-	return prefix + ":" + strings.Join(parts, ":")
-}
-
-func gatewayCacheTTL() time.Duration {
-	seconds := 30
-	if config.ApplicationConfig != nil && config.ApplicationConfig.Redis != nil && config.ApplicationConfig.Redis.RouteTTLSeconds > 0 {
-		seconds = config.ApplicationConfig.Redis.RouteTTLSeconds
-	}
-	return time.Duration(seconds) * time.Second
+	return gatewayRouteCachePrefix + ":" + strings.Join(parts, ":")
 }
 
 func gatewayRouteCacheVersion(ctx context.Context) (string, bool) {
@@ -89,7 +80,7 @@ func writeGatewayRouteCache(ctx context.Context, version, name, modality string,
 		return
 	}
 	key := gatewayCacheKey("gateway-routes", version, gatewayRouteCacheHash(name, modality))
-	_ = config.RedisClient.Set(ctx, key, data, gatewayCacheTTL()).Err()
+	_ = config.RedisClient.Set(ctx, key, data, gatewayRouteCacheTTL).Err()
 }
 
 func readPublishedModelsCache(ctx context.Context) ([]GatewayModel, bool) {
@@ -116,7 +107,7 @@ func writePublishedModelsCache(ctx context.Context, version string, models []Gat
 	if err != nil {
 		return
 	}
-	_ = config.RedisClient.Set(ctx, gatewayCacheKey("gateway-models", version), data, gatewayCacheTTL()).Err()
+	_ = config.RedisClient.Set(ctx, gatewayCacheKey("gateway-models", version), data, gatewayRouteCacheTTL).Err()
 }
 
 // InvalidateGatewayRouteCache advances a shared generation instead of scanning

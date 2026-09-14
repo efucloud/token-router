@@ -19,6 +19,7 @@ package config
 import (
 	"testing"
 
+	"github.com/redis/go-redis/v9"
 	"gopkg.in/yaml.v3"
 )
 
@@ -54,7 +55,7 @@ func TestConfigSerialization(t *testing.T) {
 			DontSupportRenameColumn:   false,
 			SkipInitializeWithVersion: false,
 		},
-		Redis:       &RedisConfig{Enabled: true, Address: "redis.example.com:6379", DB: 2, RouteTTLSeconds: 45},
+		Redis:       &RedisConfig{Enabled: true, Mode: "sentinel", Addresses: []string{"redis-1.example.com:26379", "redis-2.example.com:26379"}, Password: "redis-password", MasterName: "router-master"},
 		AdminEmails: []string{"admin@example.com"},
 		Gateway:     GatewayConfig{MaxAttempts: 2},
 		Chat: ChatConfig{
@@ -83,7 +84,7 @@ func TestConfigSerialization(t *testing.T) {
 	if decoded.Gateway.MaxAttempts != 2 || decoded.OidcConfig.ClientId != config.OidcConfig.ClientId || !decoded.OidcConfig.SkipClientIDCheck {
 		t.Fatalf("unexpected round trip result: %#v", decoded)
 	}
-	if decoded.Redis == nil || !decoded.Redis.Enabled || decoded.Redis.Address != "redis.example.com:6379" || decoded.Redis.DB != 2 || decoded.Redis.RouteTTLSeconds != 45 {
+	if decoded.Redis == nil || !decoded.Redis.Enabled || decoded.Redis.Mode != "sentinel" || len(decoded.Redis.Addresses) != 2 || decoded.Redis.Password != "redis-password" || decoded.Redis.MasterName != "router-master" {
 		t.Fatalf("unexpected Redis config: %#v", decoded.Redis)
 	}
 	if len(decoded.Chat.SkillDirectories) != 1 || decoded.Chat.SkillDirectories[0] != "/srv/token-router/skills" {
@@ -103,11 +104,56 @@ func TestRedisConfigDefaults(t *testing.T) {
 	if redisConfig.Enabled {
 		t.Fatal("Redis must remain disabled unless explicitly enabled")
 	}
-	if redisConfig.Address != "127.0.0.1:6379" || redisConfig.KeyPrefix != "token-router" || redisConfig.RouteTTLSeconds != 30 {
+	if redisConfig.Mode != "standalone" || len(redisConfig.Addresses) != 1 || redisConfig.Addresses[0] != "127.0.0.1:6379" {
 		t.Fatalf("unexpected Redis defaults: %#v", redisConfig)
 	}
-	if redisConfig.DialTimeoutMillis <= 0 || redisConfig.ReadTimeoutMillis <= 0 || redisConfig.WriteTimeoutMillis <= 0 {
-		t.Fatalf("Redis timeouts must be bounded: %#v", redisConfig)
+}
+
+func TestRedisMasterModeAliasesStandalone(t *testing.T) {
+	redisConfig := RedisConfig{Mode: "master", Addresses: []string{"redis-master:6379"}}
+	redisConfig.Default()
+	if redisConfig.Mode != "standalone" {
+		t.Fatalf("master mode must normalize to standalone: %#v", redisConfig)
+	}
+}
+
+func TestNewRedisClientModes(t *testing.T) {
+	tests := []struct {
+		name       string
+		config     RedisConfig
+		clientType string
+	}{
+		{name: "standalone", config: RedisConfig{Mode: "standalone", Addresses: []string{"redis:6379"}}, clientType: "client"},
+		{name: "sentinel", config: RedisConfig{Mode: "sentinel", Addresses: []string{"sentinel-1:26379", "sentinel-2:26379"}, MasterName: "router-master"}, clientType: "client"},
+		{name: "cluster", config: RedisConfig{Mode: "cluster", Addresses: []string{"redis-1:6379", "redis-2:6379"}}, clientType: "cluster"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client, err := newRedisClient(&test.config)
+			if err != nil {
+				t.Fatalf("create %s Redis client: %v", test.name, err)
+			}
+			t.Cleanup(func() { _ = client.Close() })
+			switch test.clientType {
+			case "client":
+				if _, ok := client.(*redis.Client); !ok {
+					t.Fatalf("expected redis.Client, got %T", client)
+				}
+			case "cluster":
+				if _, ok := client.(*redis.ClusterClient); !ok {
+					t.Fatalf("expected redis.ClusterClient, got %T", client)
+				}
+			}
+		})
+	}
+}
+
+func TestNewRedisClientRejectsInvalidMode(t *testing.T) {
+	if _, err := newRedisClient(&RedisConfig{Mode: "sentinel", Addresses: []string{"sentinel:26379"}}); err == nil {
+		t.Fatal("sentinel mode must require masterName")
+	}
+	if _, err := newRedisClient(&RedisConfig{Mode: "unknown"}); err == nil {
+		t.Fatal("unsupported Redis mode must fail validation")
 	}
 }
 

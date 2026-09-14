@@ -18,7 +18,7 @@ func setupGatewayRedisCache(t *testing.T) *miniredis.Miniredis {
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	config.RedisClient = client
 	config.ApplicationConfig = &config.Config{Redis: &config.RedisConfig{
-		Enabled: true, Address: server.Addr(), KeyPrefix: "gateway-cache-test", RouteTTLSeconds: 60,
+		Enabled: true, Addresses: []string{server.Addr()},
 	}}
 	t.Cleanup(func() {
 		_ = client.Close()

@@ -25,6 +25,8 @@ Token 和用户创建的 `tr_` API Key；API Key 直接归属用户，不引入�
 未配置 Redis 或显式关闭时使用数据库。缓存默认 TTL 为 30 秒。模型、供应商、
 渠道、路由或渠道健康状态发生变化时，所有实例通过共享缓存代次立即失效旧数据；Redis
 启动失败或运行中不可用时会自动回退到数据库。完整字段示例见 `config/config.yaml`。
+`redis.mode` 支持 `standalone`、`sentinel` 和 `cluster`；三种模式统一使用 `addresses`，
+其中 Sentinel 模式还需配置 `masterName`。
 
 ## 容器能力
 

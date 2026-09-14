@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"crypto/tls"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,30 +25,49 @@ func createRedisConnection() {
 	}
 	ApplicationConfig.Redis.Default()
 	c := ApplicationConfig.Redis
-	options := &redis.Options{
-		Addr:         c.Address,
-		Username:     c.Username,
-		Password:     c.Password,
-		DB:           c.DB,
-		MaxRetries:   1,
-		DialTimeout:  time.Duration(c.DialTimeoutMillis) * time.Millisecond,
-		ReadTimeout:  time.Duration(c.ReadTimeoutMillis) * time.Millisecond,
-		WriteTimeout: time.Duration(c.WriteTimeoutMillis) * time.Millisecond,
-		PoolSize:     c.PoolSize,
+	client, err := newRedisClient(c)
+	if err != nil {
+		Logger.Warnf("redis route cache configuration is invalid, continuing with database: %v", err)
+		return
 	}
-	if c.TLS {
-		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
-	client := redis.NewClient(options)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.DialTimeoutMillis)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err = client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
 		Logger.Warnf("redis route cache unavailable, continuing with database: %v", err)
 		return
 	}
 	RedisClient = client
-	Logger.Infof("redis route cache enabled at %s", c.Address)
+	Logger.Infof("redis route cache enabled in %s mode at %s", c.Mode, strings.Join(c.Addresses, ","))
+}
+
+func newRedisClient(c *RedisConfig) (redis.UniversalClient, error) {
+	if c == nil {
+		return nil, errors.New("redis config is missing")
+	}
+	c.Default()
+	switch c.Mode {
+	case "standalone":
+		return redis.NewClient(&redis.Options{
+			Addr: c.Addresses[0], Password: c.Password, MaxRetries: 1,
+			DialTimeout: time.Second, ReadTimeout: 500 * time.Millisecond, WriteTimeout: 500 * time.Millisecond,
+		}), nil
+	case "sentinel":
+		if c.MasterName == "" {
+			return nil, errors.New("redis masterName is required in sentinel mode")
+		}
+		return redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName: c.MasterName, SentinelAddrs: c.Addresses, Password: c.Password, SentinelPassword: c.Password, MaxRetries: 1,
+			DialTimeout: time.Second, ReadTimeout: 500 * time.Millisecond, WriteTimeout: 500 * time.Millisecond,
+		}), nil
+	case "cluster":
+		return redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs: c.Addresses, Password: c.Password, MaxRetries: 1,
+			DialTimeout: time.Second, ReadTimeout: 500 * time.Millisecond, WriteTimeout: 500 * time.Millisecond,
+		}), nil
+	default:
+		return nil, fmt.Errorf("unsupported redis mode %q", c.Mode)
+	}
 }
 
 // createDBConnection  create database connection
