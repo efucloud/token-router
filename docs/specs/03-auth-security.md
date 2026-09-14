@@ -15,6 +15,8 @@ OIDC Token 可以访问数据面；API Key 不能访问管理接口。
 - 前端登录前生成并保存 `state`，回调时强制校验。
 - 前端检查 token 过期时间，为管理请求注入 Bearer Token，收到 401 后重新登录。
 - 后端始终校验 issuer、签名和过期时间，并将 `eAuthId`、`id` 或标准 `sub` 映射到 Account。
+- 已验证的 OIDC Token 对应账户不存在时，后端使用同一 Bearer Token 调用 Issuer 的
+  `userinfo` 端点并自动创建账户，使第三方应用无需先引导用户登录本系统；已禁用账户不会被重建或启用。
 - `oidcConfig.skipClientIDCheck=false` 时校验 audience/client ID；设为 `true` 时允许同一
   Issuer 为其他客户端签发的 Token，以支持共享同一 OIDC 的内部系统互调。
 - 管理员邮箱只用于首次引导；实际接口授权以数据库 Account 角色为准。

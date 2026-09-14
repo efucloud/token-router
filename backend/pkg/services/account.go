@@ -96,6 +96,39 @@ func (svc *AccountService) CreateOrUpdateAccount(ctx context.Context, model dtos
 	}
 	return
 }
+
+// CreateAccountIfAbsent creates an account without changing an existing one.
+// The second lookup makes concurrent first requests idempotent when another
+// request inserts the same OIDC identity between the lookup and insert.
+func (svc *AccountService) CreateAccountIfAbsent(ctx context.Context, model dtos.AccountCreate) (result dtos.AccountDetail, errorData common.ErrorData) {
+	svc.init(ctx)
+	result, errorData = svc.repo.GetAccountByID(ctx, model.ID)
+	if errorData.IsNil() && result.ID != "" {
+		return result, errorData
+	}
+	if errorData.ResponseCode != http.StatusNotFound {
+		return result, errorData
+	}
+
+	model.Default(ctx)
+	if errorData.Err = model.Validate(ctx); errorData.IsNotNil() {
+		errorData.MsgCode = config.MsgCodeRequestDataInvalid
+		return result, errorData
+	}
+	result, errorData = svc.repo.AddAccount(ctx, model)
+	if errorData.IsNil() {
+		return result, errorData
+	}
+
+	// A concurrent request may have won the insert race. In that case the
+	// desired account now exists and is safe to return.
+	existing, lookupError := svc.repo.GetAccountByID(ctx, model.ID)
+	if lookupError.IsNil() && existing.ID != "" {
+		return existing, lookupError
+	}
+	return result, errorData
+}
+
 func (svc *AccountService) AddAccount(ctx context.Context, model dtos.AccountCreate) (result dtos.AccountDetail, errorData common.ErrorData) {
 	svc.init(ctx)
 	model.Default(ctx)

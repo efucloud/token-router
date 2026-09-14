@@ -100,6 +100,14 @@ func Auth(req *restful.Request, resp *restful.Response, chain *restful.FilterCha
 	}
 	userSvc := services.AccountService{}
 	user, accountError := userSvc.GetAccountByID(ctx, accountId)
+	if accountError.ResponseCode == http.StatusNotFound {
+		token := GetRequestToken(config.AuthHeader, req)
+		if token == "" {
+			token = req.QueryParameter("access_token")
+		}
+		oauthSvc := services.OAuthService{}
+		user, accountError = oauthSvc.ProvisionAccountFromToken(ctx, token, accountId)
+	}
 	if accountError.IsNotNil() || user.ID == "" || !user.Enable {
 		errorData.Lang = lang
 		errorData.Err = fmt.Errorf("当前用户不存在或已禁用")

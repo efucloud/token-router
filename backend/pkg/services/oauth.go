@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/efucloud/common"
 	"github.com/efucloud/token-router/pkg/config"
 	"github.com/efucloud/token-router/pkg/models/dtos"
@@ -13,6 +13,63 @@ import (
 )
 
 type OAuthService struct {
+}
+
+type oidcAccountClaims struct {
+	ID                string `json:"id"`
+	EAuthID           string `json:"eAuthId"`
+	Subject           string `json:"sub"`
+	Username          string `json:"username"`
+	PreferredUsername string `json:"preferred_username"`
+	Nickname          string `json:"nickname"`
+	Name              string `json:"name"`
+	Email             string `json:"email"`
+	Phone             string `json:"phone"`
+	PhoneNumber       string `json:"phone_number"`
+	Language          string `json:"language"`
+	Locale            string `json:"locale"`
+	Avatar            string `json:"avatar"`
+	Picture           string `json:"picture"`
+}
+
+func firstOIDCValue(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeOIDCLanguage(language string) string {
+	language = strings.ToLower(strings.TrimSpace(language))
+	switch {
+	case strings.HasPrefix(language, "zh"):
+		return "zh"
+	case strings.HasPrefix(language, "en"):
+		return "en-US"
+	default:
+		return ""
+	}
+}
+
+func (claims oidcAccountClaims) accountCreate(expectedAccountID string, adminEmails []string) (dtos.AccountCreate, error) {
+	accountID := firstOIDCValue(expectedAccountID, claims.EAuthID, claims.ID, claims.Subject)
+	if accountID == "" {
+		return dtos.AccountCreate{}, fmt.Errorf("OIDC userinfo does not contain a user identity")
+	}
+	email := strings.TrimSpace(claims.Email)
+	username := firstOIDCValue(claims.Username, claims.PreferredUsername, email, claims.Subject, accountID)
+	return dtos.AccountCreate{
+		ID:       accountID,
+		Username: username,
+		Nickname: firstOIDCValue(claims.Nickname, claims.Name),
+		Role:     oidcRoleForEmail(email, adminEmails),
+		Email:    email,
+		Phone:    firstOIDCValue(claims.Phone, claims.PhoneNumber),
+		Language: normalizeOIDCLanguage(firstOIDCValue(claims.Language, claims.Locale)),
+		Avatar:   firstOIDCValue(claims.Avatar, claims.Picture),
+	}, nil
 }
 
 func oidcRoleForEmail(email string, adminEmails []string) string {
@@ -38,11 +95,67 @@ func (svc *OAuthService) Userinfo(ctx context.Context, userId string) (userinfo 
 	return
 }
 
+func (svc *OAuthService) accountFromToken(ctx context.Context, accessToken, expectedAccountID string) (create dtos.AccountCreate, errorData common.ErrorData) {
+	if config.AuthProvider == nil {
+		errorData.Err = fmt.Errorf("OIDC provider is not configured")
+		return
+	}
+	if strings.TrimSpace(accessToken) == "" {
+		errorData.Err = fmt.Errorf("OIDC access token is empty")
+		return
+	}
+
+	userInfo, err := config.AuthProvider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+	}))
+	if err != nil {
+		errorData.Err = err
+		return
+	}
+	var claims oidcAccountClaims
+	if errorData.Err = userInfo.Claims(&claims); errorData.IsNotNil() {
+		return
+	}
+	if claims.Subject == "" {
+		claims.Subject = userInfo.Subject
+	}
+	var adminEmails []string
+	if config.ApplicationConfig != nil {
+		adminEmails = config.ApplicationConfig.AdminEmails
+	}
+	create, errorData.Err = claims.accountCreate(expectedAccountID, adminEmails)
+	return
+}
+
+// ProvisionAccountFromToken creates the local account for a verified OIDC
+// identity on its first API request. Existing accounts are deliberately not
+// updated so that a disabled account cannot be re-enabled by userinfo data.
+func (svc *OAuthService) ProvisionAccountFromToken(ctx context.Context, accessToken, accountID string) (result dtos.AccountDetail, errorData common.ErrorData) {
+	var create dtos.AccountCreate
+	create, errorData = svc.accountFromToken(ctx, accessToken, accountID)
+	if errorData.IsNotNil() {
+		return
+	}
+	ctx = context.WithValue(ctx, config.RequestUserId, create.ID)
+	accountSvc := AccountService{}
+	return accountSvc.CreateAccountIfAbsent(ctx, create)
+}
+
+func (svc *OAuthService) syncAccountFromToken(ctx context.Context, accessToken string) (result dtos.AccountDetail, errorData common.ErrorData) {
+	var create dtos.AccountCreate
+	create, errorData = svc.accountFromToken(ctx, accessToken, "")
+	if errorData.IsNotNil() {
+		return
+	}
+	ctx = context.WithValue(ctx, config.RequestUserId, create.ID)
+	accountSvc := AccountService{}
+	return accountSvc.CreateOrUpdateAccount(ctx, create)
+}
+
 func (svc *OAuthService) LoginByOIDC(ctx context.Context, loginParam dtos.LoginByOIDC) (response dtos.AccessTokenResponse, errorData common.ErrorData) {
 	var (
-		token      *oauth2.Token
-		userInfo   *oidc.UserInfo
-		systemUser dtos.AuthedUserInfo
+		token *oauth2.Token
 	)
 	config.Logger.Infof("LoginByOIDC code: %s", loginParam.Code)
 	oauthCfg := &oauth2.Config{
@@ -56,28 +169,7 @@ func (svc *OAuthService) LoginByOIDC(ctx context.Context, loginParam dtos.LoginB
 		config.Logger.Error(errorData.Err)
 		return
 	} else {
-		userInfo, errorData.Err = config.AuthProvider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: token.AccessToken,
-			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
-		}))
-		var (
-			create dtos.AccountCreate
-		)
-
-		accSvc := AccountService{}
-		errorData.Err = userInfo.Claims(&create)
-		if errorData.IsNotNil() {
-			config.Logger.Error(errorData.Err)
-			return
-		}
-		create.Role = oidcRoleForEmail(create.Email, config.ApplicationConfig.AdminEmails)
-
-		_, errorData = accSvc.CreateOrUpdateAccount(ctx, create)
-		if errorData.IsNotNil() {
-			config.Logger.Error(errorData.Err)
-			return
-		}
-		errorData.Err = userInfo.Claims(&systemUser)
+		_, errorData = svc.syncAccountFromToken(ctx, token.AccessToken)
 		if errorData.IsNotNil() {
 			config.Logger.Error(errorData.Err)
 			return
